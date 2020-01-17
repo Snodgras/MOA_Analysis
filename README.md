@@ -32,8 +32,8 @@ _DONE_
 * try reducing the stringency of mapping parameters _DONE_
 * do default options for bwa-mem _DONE_
 
-```trim_galore --hardclip5 100 <R1 file>
-trim_galore --hardclip3 100 <R2 file>```
+```trim_galore --hardclip5 100 <R1 file>```
+```trim_galore --hardclip3 100 <R2 file>```
 
 * Try merging the reads first (NGmerge) _DONE_
 `merge_reads.sh` then `trim_merged_reads.sh`
