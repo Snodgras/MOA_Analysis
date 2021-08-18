@@ -1,0 +1,176 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, setup}
+knitr::opts_knit$set(root.dir = "1SNPperPeak_projectedSNPs/")
+```
+
+
+```{r, functions}
+make_K<-function(rootname){
+  main<-readGRM(rootname)
+  main_K=matrix(0,max(main$grm$id1),max(main$grm$id2))
+  main_K[upper.tri(main_K,diag=T)]=main$grm$grm
+  main_K[lower.tri(main_K)]=t(main_K)[lower.tri(main_K)]
+  return(main_K)
+}
+
+normalize_kinmat <- function(kinmat){
+  #normalize kinship so that Kij \in [0,1]
+  tmp=kinmat - min(kinmat)
+  tmp=tmp/max(tmp)
+  #fix eigenvalues to positive
+  diag(tmp)=diag(tmp)-min(eigen(tmp)$values)
+  return(tmp)
+}
+
+
+readGRM <- function(rootname)
+{
+  #rootname="MOA.SNPs.bed_CentIBS_K" #originally in Jeff's code, but I think it's overriding the input so everything is being read in the same way...
+  bin.file.name <- paste(rootname, ".grm.bin", sep="")
+  n.file.name <- paste(rootname, ".grm.N.bin", sep="")
+  id.file.name <- paste(rootname, ".grm.id", sep="")
+  
+  cat("Reading IDs\n")
+  id <- read.table(id.file.name, colClasses="character")
+  n <- dim(id)[1]
+  cat("Reading GRM\n")
+  bin.file <- file(bin.file.name, "rb")
+  grm <- readBin(bin.file, n=n*(n+1)/2, what=numeric(0), size=4)
+  close(bin.file)
+  cat("Reading N\n")
+  n.file <- file(n.file.name, "rb")
+  N <- readBin(n.file, n=n*(n+1)/2, what=numeric(0), size=4)
+  close(n.file)
+  
+  cat("Creating data frame\n")
+  l <- list()
+  for(i in 1:n)
+  {
+    l[[i]] <- 1:i
+  }
+  col1 <- rep(1:n, 1:n)
+  col2 <- unlist(l)
+  grm <- data.frame(id1=col1, id2=col2, N=N, grm=grm)	
+  
+  ret <- list()
+  ret$grm <- grm
+  ret$id <- id
+  return(ret)
+}
+```
+
+
+```{r}
+library("tidyverse")
+```
+
+```{r}
+moa_K<-make_K("MOA.SNPs.bed_CentIBS_K") 
+smoa_K<-svd(moa_K)
+
+back_K<-make_K("BKGD.SNPs.bed_CentIBS_K") 
+sback_K<-svd(back_K)
+
+rest_K<-make_K("CentIBS_Rest_K") 
+srest_K<-svd(rest_K)
+```
+
+```{r}
+for(rnd in 1:10){
+# Three K matrices plus residuals
+cmoa_K = sqrt(smoa_K$d) * t(smoa_K$u) # chol(moa_K)
+cback_K = sqrt(sback_K$d) * t(sback_K$u) 
+crest_K = sqrt(srest_K$d) * t(srest_K$u) 
+# create 4 vectors of random variables with each kinship matrix (or uncorrelated residuals)
+U = matrix(0,nrow = nrow(cmoa_K),ncol = 4)
+U[,1] = crossprod(cmoa_K,rnorm(nrow(cmoa_K)))
+U[,2] = crossprod(cback_K,rnorm(nrow(cback_K)))
+U[,3] = crossprod(crest_K,rnorm(nrow(crest_K)))
+U[,4] = rnorm(nrow(cmoa_K))
+# Create a grid of variance component proportions for the 4 variance components
+#grid = seq(0,1,by = 0.2)
+#h2s = expand.grid(h21 = grid,h22 = grid,h23 = grid)
+#h2s$h24 = 1-rowSums(h2s)
+#h2s = h2s[h2s$h24 > 0,]
+
+# If we want very specific variance component proportions to test
+h2s = tibble(h21 = c(rep(0.1,1),rep(0.5,1),rep(0.05,1),rep(0.9, 1)), 
+             h22 = c(rep(0.5,1),rep(0.1,1),rep(0.05,1),rep(0.02, 1)), 
+             h23 = c(rep(0.1,1),rep(0.1,1),rep(0.3,1),rep(0.02, 1))
+             )
+h2s$h24 = 1-rowSums(h2s)
+# for each row of h2s, create a y by re-weighting the vectors of random variables
+Y = U %*% t(sqrt(h2s))
+apply(Y,2,sd)
+# column i of Y is a trait with variance component proportions h2s[i,]
+colnames(Y)<- c(paste("Set",1:4,"-",rnd,sep = ""))
+if(rnd == 1){ #iteratively adds the new trait to a main dataframe
+  Sim_Traits = as.data.frame(Y) } else{
+    Sim_Traits = add_column(Sim_Traits, Y[,1], Y[,2],Y[,3],Y[,4])
+  }
+colnames(Sim_Traits)[(ncol(Sim_Traits)-3):ncol(Sim_Traits)] = colnames(Y) #changes the column names from "Y" to trait name
+}
+write_tsv(Sim_Traits, paste("Simulated_Phenotypes",".","Round2",".txt",sep = ""))
+```
+Write Y as the phenotype output file (if not doing the loop)
+```{r}
+colnames(Y)<- c(paste("Set",1:4,"-","1",sep = ""))
+write_tsv(as.data.frame(Y), paste("Simulated_Phenotypes",".1",".txt",sep = ""))
+```
+#Trouble shooting why the simulations gave weird results for set 1 and set 3
+Set 2 and Set 4 simulations seemed to be ok, but 1 and 3 were really off. 
+So I'll make new phenotypes for set 1 and set 3 since I can't seem to find a labeling error. 
+I'll make the phenotypes individually so there's no chance of a mis-labeling
+***Later realized that 1 Kinship matrix was being read in for all 3. Error fixed in Round 2 simulations***
+```{r}
+for(rnd in 1:10){
+# Three K matrices plus residuals
+cmoa_K = sqrt(smoa_K$d) * t(smoa_K$u) # chol(moa_K)
+cback_K = sqrt(sback_K$d) * t(sback_K$u) 
+crest_K = sqrt(srest_K$d) * t(srest_K$u) 
+# create 4 vectors of random variables with each kinship matrix (or uncorrelated residuals)
+U = matrix(0,nrow = nrow(cmoa_K),ncol = 4)
+U[,1] = crossprod(cmoa_K,rnorm(nrow(cmoa_K)))
+U[,2] = crossprod(cback_K,rnorm(nrow(cback_K)))
+U[,3] = crossprod(crest_K,rnorm(nrow(crest_K)))
+U[,4] = rnorm(nrow(cmoa_K))
+# Create a grid of variance component proportions for the 4 variance components
+#grid = seq(0,1,by = 0.2)
+#h2s = expand.grid(h21 = grid,h22 = grid,h23 = grid)
+#h2s$h24 = 1-rowSums(h2s)
+#h2s = h2s[h2s$h24 > 0,]
+
+# If we want very specific variance component proportions to test
+#set1
+#h2s = tibble(h21 = c(rep(0.1,1),rep(0.5,1),rep(0.05,1),rep(0.9, 1)), 
+#             h22 = c(rep(0.5,1),rep(0.1,1),rep(0.05,1),rep(0.02, 1)), 
+#             h23 = c(rep(0.1,1),rep(0.1,1),rep(0.3,1),rep(0.02, 1))
+#             )
+h2s = tibble(h21 = c(rep(0.05,1)), 
+             h22 = c(rep(0.05,1)), 
+             h23 = c(rep(0.3,1))
+             )
+h2s$h24 = 1-rowSums(h2s)
+# for each row of h2s, create a y by re-weighting the vectors of random variables
+Y = U %*% t(sqrt(h2s))
+apply(Y,2,sd)
+# column i of Y is a trait with variance component proportions h2s[i,]
+colnames(Y)<- c(paste("Set",3,"-",rnd,sep = "")) #makes the trait name
+if(rnd == 1){ #iteratively adds the new trait to a main dataframe
+  Set3_Traits = as.data.frame(Y) } else{
+    Set3_Traits = add_column(Set3_Traits, Y)
+  }
+colnames(Set3_Traits)[rnd] = colnames(Y) #changes the column names from "Y" to trait name
+}
+#write_tsv(Set1_Traits, paste("Simulated_Phenotypes",".","Set1only",".txt",sep = ""))
+write_tsv(Set3_Traits, paste("Simulated_Phenotypes",".","Set3only",".txt",sep = ""))
+```
+
+#And to find the correlation between two kinship matrices
+```{r}
+cor(c(moa_K),c(back_K))
+```

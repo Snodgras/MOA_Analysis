@@ -1,0 +1,1405 @@
+---
+title: "VCAP Figures"
+author: "Samantha Snodgrass"
+date: "12/14/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Necessary Packages
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(reshape2)
+```
+
+# EG80 WW results, no background component
+Getting the raw data
+```{r}
+EG80WW_data<-read_csv("EG80_WW_Results.csv")
+EG80WW_data<-EG80WW_data %>% select(-contains("X"))
+```
+Calculating % Va
+```{r}
+EG80WW_data<-EG80WW_data %>% mutate(percent_Va = K1_heritability/All_heritiability)
+```
+Graphing it
+```{r}
+ggplot(data = EG80WW_data, aes(x=reorder(Phenotype, percent_Va), y= percent_Va)) +
+  geom_bar(stat = "identity", fill = "blue")+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 5))+
+  xlab("Phenotype")+ylab("Va %")
+ggsave("EG80WW_percentVa.pdf",device = "pdf",height = 12)
+```
+
+# Shuffled window results, no background component
+Getting the raw results and format into a table
+```{r}
+shuff_results<-read_tsv("Shuffled_Results_Summary.txt", col_names = FALSE)
+shuff_data<-tibble(phenotype = filter(shuff_results, !X1 %in% c("Her_K1","Her_K2","Her_ALL")) %>% select(X1) %>% pull(),
+       K1_heritability = filter(shuff_results, X1 =="Her_K1") %>% select(X2) %>% pull(),
+       K1_her_SD = filter(shuff_results, X1 =="Her_K1") %>% select(X3) %>% pull(),
+       K2_heritability = filter(shuff_results, X1 =="Her_K2") %>% select(X2) %>% pull(),
+       K2_her_SD = filter(shuff_results, X1 =="Her_K2") %>% select(X3) %>% pull(),
+       Kall_heritability = filter(shuff_results, X1 =="Her_ALL") %>% select(X2) %>% pull(),
+       Kall_her_SD = filter(shuff_results, X1 =="Her_ALL") %>% select(X3) %>% pull())
+```
+Make it into a function
+```{r}
+format_results_table<-function(df){
+  new_df<-tibble(phenotype = filter(df, !X1 %in% c("Her_K1","Her_K2","Her_ALL")) %>% select(X1) %>% pull(),
+       K1_heritability = filter(df, X1 =="Her_K1") %>% select(X2) %>% pull(),
+       K1_her_SD = filter(df, X1 =="Her_K1") %>% select(X3) %>% pull(),
+       K2_heritability = filter(df, X1 =="Her_K2") %>% select(X2) %>% pull(),
+       K2_her_SD = filter(df, X1 =="Her_K2") %>% select(X3) %>% pull(),
+       Kall_heritability = filter(df, X1 =="Her_ALL") %>% select(X2) %>% pull(),
+       Kall_her_SD = filter(df, X1 =="Her_ALL") %>% select(X3) %>% pull())
+  return(new_df)
+}
+#test the function
+format_results_table(shuff_results)
+```
+Make the plot
+```{r}
+shuff_data<- shuff_data %>% mutate(percent_Va = K1_heritability/Kall_heritability)
+shuff_data<-shuff_data %>% mutate(rest_Va = K2_heritability/Kall_heritability)
+ggplot(data = shuff_data, aes(x=reorder(phenotype, percent_Va))) +
+  geom_bar(stat = "identity", fill = "blue", aes(y= percent_Va))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 5))+
+  xlab("Phenotype")+ylab("Va %")
+ggsave("Shuffled_percentVa.pdf",device = "pdf",height = 12)
+
+```
+Turning it into a function
+```{r}
+plot_Va<-function(df){
+  plt<-df %>% mutate(percent_Va = K1_heritability/Kall_heritability) %>%
+    ggplot(aes(x=reorder(phenotype, percent_Va))) +
+    geom_bar(stat = "identity", fill = "blue", aes(y = percent_Va)) +
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 5))+
+    xlab("Phenotype")+ylab("Va %")
+  return(plt)
+}
+plot_Va(shuff_data)
+```
+Checking the Vitamin E overall heritability
+```{r}
+shuff_data$Vitamin_E_study <- str_detect(shuff_data$phenotype,"Diepenbrock")
+ggplot(shuff_data, aes(y = Kall_heritability, x = Vitamin_E_study)) +
+  geom_boxplot()+
+  geom_jitter(height = 0, width = 0.2, aes(color = Vitamin_E_study))+
+  xlab("Vitamin E Study?") + ylab("Total Estimated Heritability")
+ggsave("HeritabilitybyVitaminE.pdf", device="pdf")  
+```
+
+#MOA + Background 100 permutation test
+##First need to load in the data and format it for working in R
+```{r}
+H_perm0<-read_tsv("100_perm_test/EG80WW_perm_0.h_estimates.txt")
+names(H_perm0)<- names(H_perm0) %>% str_replace_all(.,"_1","_SD")
+names(H_perm0)[13]<-"Trait"
+H_perm0<-H_perm0 %>% select(-contains("Component"))
+```
+Create a function to format the data files
+```{r}
+#assign(objname, read_tsv(p))
+format_Hperm<-function(df){
+  names(df)<- names(df) %>% str_replace_all(.,"_1","_SD")
+  names(df)[13]<-"Trait"
+  df<-df %>% select(-contains("Component"))
+  return(df)
+}
+#H_perm1<-format_Hperm(H_perm1)
+```
+Write a for loop to read in and format the data files
+```{r}
+for(i in 6:99){
+  p<-str_c("100_perm_test/EG80WW_perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+##Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+##Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+```{r}
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 12))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set2")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+```
+##Calculate summary statistics
+```{r}
+Summary_Va<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% group_by(Trait) %>% summarize(Mean_MOA = mean(Va_MOA), Median_MOA = median(Va_MOA), std_dev_MOA = sd(Va_MOA),Mean_BKGD = mean(Va_BKGD), Median_BKGD = median(Va_BKGD), std_dev_BKGD = sd(Va_BKGD),Mean_Rest = mean(Va_Rest), Median_Rest = median(Va_Rest), std_dev_Rest = sd(Va_Rest))
+
+```
+##Plot summary Statistics
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.25))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 12))+
+  scale_color_brewer(palette = "Set2")+
+  xlab("Trait")+ylab("Mean %Va")
+```
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+ggsave("100_perm_test/Mean_percentVa_byKcomponent.pdf", device = "pdf")
+```
+##MOA + Background 100 permutation test but now will all phenotypes
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("Test_Results_Full/EG80WW_perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p, col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set1")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+```
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+```
+###Let's group phenotypes by "category"
+```{r}
+tassel_architecture<-c("tassel_length_BLUP;Brown_2011","spike_length_BLUP;Brown_2011","branch_zone_BLUP;Brown_2011","branch_number_transformed_BLUP;Brown_2011","tassprimbranchno_BLUP;Hung_2012_1","tasslength_BLUP;Hung_2012_1")
+ear_architecture<-c("cob_length_BLUP;Brown_2011","cob_diameter_BLUP;Brown_2011","ear_row_number_transformed_BLUP;Brown_2011","cobdiam_BLUP;Hung_2012_1","coblength_BLUP;Hung_2012_1","earrowno_BLUP;Hung_2012_1","kernelnoperrow_BLUP;Hung_2012_1","earmass_BLUP;Hung_2012_1","cobmass_BLUP;Hung_2012_1","totalkernelweight_BLUP;Hung_2012_1","weight20kernels_BLUP;Hung_2012_1","totalkernelno_BLUP;Hung_2012_1","starch_kernel_BLUP;Cook_2012","protein_kernel_BLUP;Cook_2012","oil_kernel_BLUP;Cook_2012")
+penetrometer<-c("WI_rind_penetrometer_resistance_BLUE;Peiffer_2013","WI_rind_penetrometer_resistance_BLUP;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUE;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUP;Peiffer_2013","MO_rind_penetrometer_resistance_BLUE;Peiffer_2013","MO_rind_penetrometer_resistance_BLUP;Peiffer_2013","NY_rind_penetrometer_resistance_BLUE;Peiffer_2013","NY_rind_penetrometer_resistance_BLUP;Peiffer_2013")
+disease<-c("southern_leaf_blight_BLUP;Bian_2014_Kump_2011","lesion_severity_BLUP;Olukolu_2014","sqrt_diseased_leaf_area1_BLUP;Poland_2011","sqrt_diseased_leaf_area2_BLUP;Poland_2011","sqrt_diseased_leaf_area3_BLUP;Poland_2011","diseased_leaf_area1_BLUP;Poland_2011","diseased_leaf_area2_BLUP;Poland_2011","diseased_leaf_area3_BLUP;Poland_2011","northern_leaf_blight_index_BLUP;Poland_2011")
+plant_architecture<-c("height_ratio_BLUP;Olukolu_2014","stalk_width_ratio_BLUP;Olukolu_2014","leaf_length_BLUP;Tian_2011","leaf_width_BLUP;Tian_2011","upper_leaf_angle_BLUP;Tian_2011","last_leaf_with_epicuticular_wax;Foerster_2015","ALL_ear_height_BLUE;Peiffer_2013","ALL_ear_height_BLUP;Peiffer_2013","plantheight_BLUP;Hung_2012_1","earheight_BLUP;Hung_2012_1","leaflength_BLUP;Hung_2012_1","leafwidth_BLUP;Hung_2012_1","upperleafangle_BLUP;Hung_2012_1","nodenumberbelowear_BLUP;Hung_2012_1","nodenumberaboveear_BLUP;Hung_2012_1","numbraceroots_BLUP;Hung_2012_1","plant_height_BLUP;Peiffer_2014","ear_height_BLUP;Peiffer_2014","plant_height_minus_ear_height_BLUP;Peiffer_2014","ear_height_div_plant_height_BLUP;Peiffer_2014","plant_height_div_DTA_BLUP;Peiffer_2014","leaf_angle_boxcox_transformed_BLUP;Tian_2011")
+flowering_time<-c("DTA_ratio_BLUP;Olukolu_2014","ALL_DTA_BLUE;Peiffer_2013","ALL_DTA_BLUP;Peiffer_2013","DTS_BLUP;Hung_2012_1","DTA_BLUP;Hung_2012_1","asi_BLUP;Hung_2012_1","DTA_BLUP;Buckler_2009","DTS_BLUP;Buckler_2009","DTA_BLUP;Wallace_2014","ASI_BLUP;Buckler_2009","GDD_DTS_BLUP;Peiffer_2014","GDD_DTA_BLUP;Peiffer_2014","GDD_ASI_BLUP;Peiffer_2014","DTS_BLUP;Peiffer_2014","DTA_BLUP;Peiffer_2014","ASI_BLUP;Peiffer_2014","GDD_DTA_long_BLUP;Hung_2012","GDD_DTA_short_BLUP;Hung_2012","GDD_DTA_photo_resp_BLUP;Hung_2012","GDD_DTS_long_BLUP;Hung_2012","GDD_DTS_short_BLUP;Hung_2012","GDD_DTS_photo_resp_BLUP;Hung_2012","GDD_DTA_NC06_BLUP;Hung_2012","GDD_DTS_NC06_BLUP;Hung_2012","GDD_DTA_MO06_BLUP;Hung_2012","GDD_DTS_MO06_BLUP;Hung_2012","GDD_DTA_NY06_BLUP;Hung_2012","GDD_DTS_NY06_BLUP;Hung_2012","GDD_DTA_IL06_BLUP;Hung_2012","GDD_DTS_IL06_BLUP;Hung_2012","GDD_DTA_FL06_BLUP;Hung_2012","GDD_DTS_FL06_BLUP;Hung_2012","GDD_DTA_PR06_BLUP;Hung_2012","GDD_DTS_PR06_BLUP;Hung_2012","GDD_DTA_NC07_BLUP;Hung_2012","GDD_DTS_NC07_BLUP;Hung_2012","GDD_DTA_MO07_BLUP;Hung_2012","GDD_DTS_MO07_BLUP;Hung_2012","GDD_DTA_NY07_BLUP;Hung_2012","GDD_DTS_NY07_BLUP;Hung_2012","GDD_DTA_IL07_BLUP;Hung_2012","GDD_DTS_IL07_BLUP;Hung_2012","GDD_DTA_FL07_BLUP;Hung_2012","GDD_DTS_FL07_BLUP;Hung_2012")
+misc<-c("glsblup;Benson_2015","flecking_ls_mean;Olukolu_2016","flecking_poisson_transformation_BLUP;Olukolu_2016")
+vitamin_E<-c("alphaT_transformed_BLUE;Diepenbrock_2017","deltaT_transformed_BLUE;Diepenbrock_2017","gammaT_transformed_BLUE;Diepenbrock_2017","TotalT_transformed_BLUE;Diepenbrock_2017","alphaT3_transformed_BLUE;Diepenbrock_2017","deltaT3_transformed_BLUE;Diepenbrock_2017","gammaT3_transformed_BLUE;Diepenbrock_2017","TotalT3_transformed_BLUE;Diepenbrock_2017","TotalT_plus_T3_transformed_BLUE;Diepenbrock_2017","plastochromanol8_transformed_BLUE;Diepenbrock_2017","alphaT_div_gammaT_transformed_BLUE;Diepenbrock_2017","alphaT3_div_gammaT3_transformed_BLUE;Diepenbrock_2017","gammaT_div_gammaTPlusalphaT_transformed_BLUE;Diepenbrock_2017","gammaT3_div_gammaT3PlusalphaT3_transformed_BLUE;Diepenbrock_2017","deltaT_div_gammaTPlusalphaT_transformed_BLUE;Diepenbrock_2017","deltaT_div_alphaT_transformed_BLUE;Diepenbrock_2017","deltaT_div_gammaT_transformed_BLUE;Diepenbrock_2017","deltaT3_div_gammaT3PlusalphaT3_transformed_BLUE;Diepenbrock_2017","deltaT3_div_alphaT3_transformed_BLUE;Diepenbrock_2017","deltaT3_div_gammaT3_transformed_BLUE;Diepenbrock_2017","TotalT_div_totalT3_transformed_BLUE;Diepenbrock_2017")
+metabolites<-c("chlorophylla_BLUP;Wallace_2014","chlorophyllb_BLUP;Wallace_2014","malate_BLUP;Wallace_2014","fumarate_BLUP;Wallace_2014","fumarate2_BLUP;Wallace_2014","glutamate_BLUP;Wallace_2014","aminoacids_BLUP;Wallace_2014","protein_BLUP;Wallace_2014","nitrate_BLUP;Wallace_2014","starch_BLUP;Wallace_2014","sucrose_BLUP;Wallace_2014","glucose_BLUP;Wallace_2014","fructose_BLUP;Wallace_2014","principal_component_metabolies1;Wallace_2014","principal_component_metabolies2;Wallace_2014")
+```
+Splitting the plot by category
+```{r}
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) 
+
+melted_HpermALL<-mutate(melted_HpermALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
+                                  Trait %in% ear_architecture ~ "ear_architecture",
+                                  Trait %in% disease ~ "disease",
+                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% plant_architecture ~ "plant_architecture",
+                                  Trait %in% flowering_time ~ "flowering_time",
+                                  Trait %in% misc ~ "misc",
+                                  Trait %in% vitamin_E ~ "vitamin_E",
+                                  Trait %in% metabolites ~ "metabolites"))
+melted_stats_HpermALL<-mutate(melted_stats_HpermALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
+                                  Trait %in% ear_architecture ~ "ear_architecture",
+                                  Trait %in% disease ~ "disease",
+                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% plant_architecture ~ "plant_architecture",
+                                  Trait %in% flowering_time ~ "flowering_time",
+                                  Trait %in% misc ~ "misc",
+                                  Trait %in% vitamin_E ~ "vitamin_E",
+                                  Trait %in% metabolites ~ "metabolites"))
+```
+```{r}
+for(i in c("ear_architecture","disease","penetrometer","plant_architecture","flowering_time","misc","vitamin_E","metabolites")){
+  assign(str_c("bxplt_",i), melted_HpermALL %>% filter(Trait_Category == i) %>% ggplot(aes(x=Trait)) +geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+theme(axis.text.y = element_text(size = 6))+xlab("")+ylab("Va %")+scale_color_brewer(palette = "Set1")+ggtitle(str_c("Traits of ",i)))
+}
+for(i in ls(pattern = "bxplt")){ggsave(file=str_c("Test_Results_Full/",i,".pdf"), plot = get(i), device = "pdf")}
+```
+```{r}
+for(i in c("ear_architecture","disease","penetrometer","plant_architecture","flowering_time","misc","vitamin_E","metabolites")){
+  assign(str_c("ptrange_",i), melted_stats_HpermALL %>% filter(Trait_Category == i) %>% ggplot(aes(x=Trait, y=Mean)) +geom_point(data = filter(melted_HpermALL,Trait_Category == i), aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+coord_flip()+theme(axis.text.y = element_text(size = 6))+scale_color_brewer(palette = "Set1")+xlab("")+ylab("Mean %Va")+ggtitle(str_c("Traits of ",i)))
+}
+for(i in ls(pattern = "ptrange")){ggsave(file=str_c("Test_Results_Full/",i,".pdf"), plot = get(i), device = "pdf")}
+```
+####For MM poster
+```{r}
+#melted_HpermALL<-melted_HpermALL %>% mutate(., TraitName4Plot = str_split(Trait, ";",simplify = TRUE)[,1]) 
+
+#melted_HpermALL%>% group_by(Trait) %>% filter(Trait_Category=="disease") %>% ggplot(aes(x=TraitName4Plot))+geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+theme(axis.text.y = element_text(size = 6))+xlab("")+ylab("Va %")+scale_color_brewer(palette = "Set1")
+
+#melted_HpermALL %>% filter(Trait_Category == "disease") %>% ggplot(aes(x=Trait)) +geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+theme(axis.text.y = element_text(size = 6))+xlab("")+ylab("Va %")+scale_color_brewer(palette = "Set1")+ggtitle(str_c("Traits of ",i))
+
+H_perm_ALL<-mutate(H_perm_ALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
+                                  Trait %in% ear_architecture ~ "ear_architecture",
+                                  Trait %in% disease ~ "disease",
+                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% plant_architecture ~ "plant_architecture",
+                                  Trait %in% flowering_time ~ "flowering_time",
+                                  Trait %in% misc ~ "misc",
+                                  Trait %in% vitamin_E ~ "vitamin_E",
+                                  Trait %in% metabolites ~ "metabolites"),
+                     trait_colors = case_when(Trait_Category == "ear_architecture" ~ "chocolate3",
+                                              Trait_Category == "disease" ~ "darkgreen",
+                                              Trait_Category == "penetrometer" ~ "deepskyblue",
+                                              Trait_Category == "plant_architecture" ~ "firebrick",
+                                              Trait_Category == "flowering_time" ~ "goldenrod",
+                                              Trait_Category == "misc" ~ "grey61",
+                                              Trait_Category == "vitamin_E" ~ "navyblue",
+                                              Trait_Category == "metabolites" ~ "purple",
+                                              Trait_Category == "tassel_architecture" ~ "violetred1"))
+H_perm_ALL<-arrange(H_perm_ALL, Va_MOA)
+H_perm_ALL%>% ggplot(aes(x=reorder(Trait,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = melted_stats_HpermALL, aes(x=Trait, y=Mean, shape = K_Component)) + 
+  #geom_pointrange(data = melted_stats_HpermALL,aes(x=Trait,y=Mean,ymin=Mean-std_dev, ymax=Mean+std_dev, shape=K_Component), alpha =0.5)+
+  coord_flip()+theme(axis.text.y = element_text(size = 12))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+
+ggsave("Test_Results_Full/MM_poster_PointALL.png", device = "png", dpi = 300, height = 27, width = 12, units = "in")
+
+filter(melted_HpermALL, Trait %in% c("plantheight_BLUP;Hung_2012_1","plant_height_BLUP;Peiffer_2014","earheight_BLUP;Hung_2012_1","ear_height_BLUP;Peiffer_2014", "ALL_ear_height_BLUP;Peiffer_2013","ALL_ear_height_BLUE;Peiffer_2013")) %>% group_by(Trait) %>% 
+  ggplot(aes(x=Trait)) + geom_boxplot(aes(y=percent_Va, color = K_Component))+
+  coord_flip()+theme(axis.text.y = element_text(size = 12))+
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle("Height Trait Subset")
+ggsave("Test_Results_Full/MM_poster_HeightBxplt.pdf", dpi=300, device = "pdf", height = 4, units = "in")
+
+
+
+for(i in c("ear_architecture","disease","penetrometer","plant_architecture","flowering_time","misc","vitamin_E","metabolites")){
+ assign(str_c("bxplt_",i), melted_HpermALL %>% group_by(Trait)%>% filter(Trait_Category == i) %>% ggplot(aes(x=Trait)) +geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+theme(axis.text.y = element_text(size = 6))+xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Traits of ",i)))
+}
+for(i in ls(pattern = "bxplt")){ggsave(file=str_c("Test_Results_Full/MM_poster_",i,".pdf"), plot = get(i), device = "pdf", height = 8, units = "in", dpi = 300)}
+
+MOA_AF<-read_tsv("Full_EG80WW_MOA_AF.distribution")
+BKGD_AF<-read_tsv("Full_EG80WW_BKGD_AF.distribution")
+
+ggplot()+
+  geom_bar(stat = "identity", data = BKGD_AF, aes(x=AFbin, y=AF_bin_count))+
+  geom_bar(stat = "identity", data = MOA_AF, fill = "red", aes(x=AFbin, y=AF_bin_count))+
+  xlab("Allele Frequency Bin (0.10 interval)")+ylab("SNPs per Bin (count)")
+ggsave("MM_poster_Combined_AFspectrum.png", device = "png", dpi = 300)
+ggplot()+
+  geom_bar(stat = "identity", data = MOA_AF, fill = "red", aes(x=AFbin, y=AF_bin_count))+
+  xlab("")+ylab("")
+ggsave("MM_poster_MOAonly_AFspectrum.png", device = "png", dpi = 300)
+
+```
+##For Thomas's talk
+```{r}
+Trait_Key<-tibble( Trait = unique(H_perm_ALL$Trait))
+Trait_Key<- mutate(Trait_Key, pub_name = str_split(Trait, ";",simplify = TRUE) %>% .[,2])
+Trait_Key<- arrange(Trait_Key, pub_name) %>% mutate(plot_name = str_c(row_number(),pub_name, sep = "_"))
+H_perm_ALL<-inner_join(H_perm_ALL, Trait_Key, by="Trait")
+
+#BLUE v BLUP
+melted_stats_HpermALL<-inner_join(melted_stats_HpermALL, Trait_Key, by="Trait")
+melted_BLUP<-grep("BLUP",melted_stats_HpermALL$Trait, ignore.case = TRUE)
+meltedstats_BLUP<-melted_stats_HpermALL[melted_BLUP,]
+melted_BLUE<-grep("BLUE",melted_stats_HpermALL$Trait, ignore.case = TRUE)
+meltedstats_BLUE<-melted_stats_HpermALL[melted_BLUE,]
+
+H_perm_ALL%>% filter(str_detect(H_perm_ALL$Trait, "BLUP") == TRUE |str_detect(H_perm_ALL$Trait, "blup") == TRUE) %>%
+  ggplot(aes(x=reorder(plot_name,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = meltedstats_BLUP, aes(x=plot_name, y=Mean, shape = K_Component)) + 
+  coord_flip()+theme(axis.text.y = element_text(size = 6))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of BLUPs with 100 Permutations"))+
+  theme(legend.title = element_blank())
+
+H_perm_ALL%>% filter(str_detect(H_perm_ALL$Trait, "BLUE") == TRUE |str_detect(H_perm_ALL$Trait, "blue") == TRUE) %>%
+  ggplot(aes(x=reorder(plot_name,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = meltedstats_BLUE, aes(x=plot_name, y=Mean, shape = K_Component)) + 
+  coord_flip()+theme(axis.text.y = element_text(size = 6))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of BLUEs with 100 Permutations"))+
+  theme(legend.title = element_blank())
+
+filter(H_perm_ALL, str_detect(H_perm_ALL$Trait, "Peiffer") == TRUE) %>% 
+  ggplot(aes(x=reorder(Trait,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  coord_flip()+theme(axis.text.y = element_text(size = 6))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of Peiffer with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Peiffer.BLUEvBLUPtest.png", device = "png")
+
+#FULL RESULTS, NO LABELS
+H_perm_ALL %>%
+  ggplot(aes(x=reorder(Trait,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = melted_stats_HpermALL, aes(x=Trait, y=Mean, shape = K_Component)) + 
+  theme(axis.text.y = element_text(size = 12), axis.text.x = element_blank())+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Test_Results_Full/SidewaysAllPointsVaNoLabels.png", device = "png")
+```
+### ZEALUTION FIGURES ###
+```{r}
+H_perm_ALL %>%
+  ggplot(aes(x=reorder(Trait,Va_MOA)))+
+  geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = melted_stats_HpermALL, aes(x=Trait, y=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  theme(axis.text.y = element_text(size = 12), axis.text.x = element_blank())+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+
+library(ggridges)
+#Uses MEAN for points
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) + 
+  stat_density_ridges(aes(x=Va_Rest,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_BKGD,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_MOA,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("Va %") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = melted_stats_HpermALL, aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Test_Results_Full/ZEALUTION_ridgeplotVaALL_MEAN.png",device = "png")
+###Uses MEDIAN for points
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) + 
+  stat_density_ridges(aes(x=Va_Rest,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_BKGD,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_MOA,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("Va %") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = melted_stats_HpermALL, aes(y=Trait, x=Median, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Test_Results_Full/ZEALUTION_ridgeplotVaALL_MEDIAN.png",device = "png")
+
+#Remaking with h2 instead of Va%
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
+
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2)) 
+
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
+  stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K1,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_ALL"), aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  #geom_point(data = filter(melted_stats_HpermALL, K_Component == "Her_ALL"),
+  #           aes(x=Mean, y=Trait), alpha = 0.5, size=1, color = "goldenrod")+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated h2 of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Test_Results_Full/EVOLUTION_ridgeplot.h2.all.png", device = "png")
+
+filter(melted_HpermALL, Trait %in% c("plantheight_BLUP;Hung_2012_1","plant_height_BLUP;Peiffer_2014","earheight_BLUP;Hung_2012_1","ear_height_BLUP;Peiffer_2014", "ALL_ear_height_BLUP;Peiffer_2013","ALL_ear_height_BLUE;Peiffer_2013") & K_Component != "Her_ALL") %>%
+  group_by(Trait) %>% 
+  ggplot(aes(x=Trait)) + geom_boxplot(aes(y=h2, fill = K_Component, color = K_Component))+
+  coord_flip()+theme(axis.text.y = element_text(size = 12))+
+  xlab("")+ylab("h2")+
+  scale_fill_brewer(palette = "Set2")+
+  scale_color_brewer(palette = "Dark2")+
+  ggtitle("Height Trait Subset")+
+  theme_minimal()#+theme(panel.grid.major.y = element_blank())
+ggsave("Test_Results_Full/EVOLUTION_boxplot.heightonly.png", device = "png", height=7.45,width = 12.36,units = "in")
+```
+
+####Testing for significant differences in Va by K_component and trait
+Testing it out as a general
+```{r}
+model.1 <- aov(percent_Va ~ K_Component + Trait, data= melted_HpermALL)
+summary(model.1)
+TukeyHSD(model.1,which = "K_Component")
+```
+Testing it by trait
+```{r}
+#Loop to test for differences in TPM by Pangene and MOA SNP
+trait.list<-H_perm_ALL$Trait %>% unique() 
+
+aov.p<-c()
+trait<-c()
+f.stat<-c()
+trait<-c()
+con.trait<-c()
+con.name<-c()
+con.p<-c()
+con.diff<-c()
+
+#t<-filter(melted_HpermALL, Trait == trait.list[1])
+#agep<-aov(percent_Va ~ K_Component + 0, data = t)
+#con<-TukeyHSD(agep, which = "K_Component")
+#aov.p<-c(aov.p, summary(agep)[[1]][[5]][[1]])
+#f.stat<-c(f.stat, summary(agep)[[1]][[4]][[1]])
+#trait<-c(trait,trait.list[1])
+#con.trait<-c(con.trait,trait.list[1],trait.list[1],trait.list[1] )
+#con.name<-c(con.name, con$K_Component %>% dimnames()%>% .[[1]])
+#con.p<-c(con.p, con$K_Component[,4]) %>% unname()
+#con.diff<-c(con.diff, con$K_Component[,1]) %>% unname()
+
+
+for(i in 1:length(trait.list)){
+  t<-filter(melted_HpermALL, Trait == trait.list[i])
+  agep<-aov(percent_Va ~ K_Component + 0, data = t)
+  con<-TukeyHSD(agep, which = "K_Component")
+  aov.p<-c(aov.p, summary(agep)[[1]][[5]][[1]])
+  f.stat<-c(f.stat, summary(agep)[[1]][[4]][[1]])
+  trait<-c(trait,trait.list[i])
+  con.trait<-c(con.trait,trait.list[i],trait.list[i],trait.list[i] )
+  con.name<-c(con.name, con$K_Component %>% dimnames()%>% .[[1]])
+  con.p<-c(con.p, con$K_Component[,4]) %>% unname()
+  con.diff<-c(con.diff, con$K_Component[,1]) %>% unname()
+}
+ANOVA.Results<-tibble(P_val = aov.p, F_Stat =f.stat,Trait = trait)
+Contrast.Results<-tibble(Trait = con.trait, Contrast_Name = con.name, P_val = con.p ,Contrast_Difference = con.diff)
+```
+Check for significance?
+```{r}
+nrow(ANOVA.Results)
+0.05/143 #Bonferroni cut off
+#Which of the tests meet the Bonferroni cut off?
+Bonferroni.aov<-filter(ANOVA.Results, P_val <=  0.0003496503)
+
+###Calculate Benjamini-Hochberg values for test values
+ANOVA.Results<-arrange(ANOVA.Results, P_val) #arrange p-values smallest to largest
+#Find the largest integer k so that p(k) <= k*alpha/m
+BH_05<-c()
+for(k in 1:nrow(ANOVA.Results)){
+  temp<-(k*0.05)/nrow(ANOVA.Results)
+  BH_05<-c(BH_05,temp)
+}
+ANOVA.Results<-add_column(ANOVA.Results,BH_05)
+ANOVA.Results
+BH05.aov<-filter(ANOVA.Results, P_val <= ANOVA.Results$BH_05)
+
+```
+```{r}
+filter(Contrast.Results, P_val >= 0.05)
+```
+
+
+##MOA + Background 100 permutation test, height phenotypes, 10000 SNPs for each component
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm")) #so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("10000SNPtests/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set1")
+ggsave("10000SNPtests/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+melted_HpermALL %>% ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("10K SNP Test"))
+ggsave("10000SNPtests/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+ggsave("10000SNPtests/PtRange_Height.pdf", device = "pdf")
+```
+##For evolution talk
+```{r}
+#Remaking with h2 instead of Va%
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
+
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2)) 
+
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
+  stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K1,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_ALL"), aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  #geom_point(data = filter(melted_stats_HpermALL, K_Component == "Her_ALL"),
+  #           aes(x=Mean, y=Trait), alpha = 0.5, size=1, color = "goldenrod")+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated h2 of Height Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("10000SNPtests/EVOLUTION_ridgeplot.h2.heightsonly.png",device="png")
+
+filter(melted_HpermALL, K_Component != "Her_ALL") %>% ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=h2, fill=K_Component, color=K_Component))+coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("")+ylab("h2")+
+    scale_fill_brewer(palette = "Set2")+
+    scale_color_brewer(palette = "Dark2")+ 
+    ggtitle("10K SNP Test on Heights")+
+    theme_minimal()#+
+    #theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())
+ggsave("10000SNPtests/EVOLUTION_boxplot.h2.heightonly.png",device="png", height=7.45,width = 12.36,units = "in")
+```
+##Biased vs Unbiased 100 permutation test, height phenotypes
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("Biased_Peak_Test/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_Biased = Her_K1 / Her_ALL,
+                  Va_Unbiased = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set1")
+ggsave("Biased_Peak_Test/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+melted_HpermALL %>% ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("Biased v Unbiased Peak Test"))
+ggsave("Biased_Peak_Test/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+ggsave("Biased_Peak_Test/PtRange_Height.pdf", device = "pdf")
+```
+##MOA + Background 100 permutation test, ALL phenotypes, 50000 SNPs for each component
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("50000SNPtests/Full_Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set1")
+ggsave("50000SNPtests/Boxplot_AllTraits.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+#melted_HpermALL %>% ggplot(aes(x=Trait)) +
+#    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+#    theme(axis.text.y = element_text(size = 6))+
+#    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("50K SNP Test"))
+#ggsave("50000SNPtests/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+Point range plot
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+ggsave("50000SNPtests/PtRange_AllTraits.pdf",device = "pdf")
+```
+For Thomas's Talk:
+```{r}
+#FULL RESULTS, NO LABELS
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) 
+H_perm_ALL %>%
+  ggplot(aes(x=reorder(Trait,Va_MOA)))+
+  #geom_point(aes(y=Va_Rest, color="3_Rest"), alpha = 0.3, size = 1)+
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Va_Rest"), aes(x=Trait, y=Mean, shape = K_Component)) + 
+  #geom_pointrange(data = filter(melted_stats_HpermALL, K_Component != "Va_Rest"), aes(x=Trait,y=Mean,ymin=Mean-std_dev, ymax=Mean+std_dev, shape=K_Component), alpha =0.5)+
+  theme(axis.text.y = element_text(size = 12), axis.text.x = element_blank())+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of All Traits with 100 Permutations, 50K"))+
+  theme(legend.title = element_blank())#+theme_bw()#+theme(panel.grid.major = element_blank())
+ggsave("50000SNPtests/AllTraits_PointPlot.pdf", dpi = 300, device="pdf")
+
+leaf_traits<-grep(x=plant_architecture,pattern = "leaf", value = TRUE)
+
+H_perm_ALL %>% filter(Trait %in% leaf_traits) %>%
+  ggplot(aes(x=reorder(Trait, Va_MOA))) +
+  geom_point(aes(y=Va_BKGD, color="2_Background"), alpha = 0.3,size = 1)+
+  geom_point(aes(y=Va_MOA, color="1_MOA"), alpha = 0.3,size = 1)+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Va_Rest" & Trait %in% leaf_traits), aes(x=Trait, y=Mean, shape = K_Component)) + theme_bw()+
+   theme(axis.text.y = element_text(size = 12), axis.text.x = element_text(angle = 90))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of Leaf Architecture with 100 Permutations, 50K"))+
+  theme(legend.title = element_blank())
+ggsave("50000SNPtests/LeafTraits_PointPlot.pdf", dpi = 300, device = "pdf")
+
+melted_HpermALL %>% filter(Trait %in% leaf_traits & K_Component != "Va_Rest") %>%
+  ggplot(aes(x=reorder(Trait, percent_Va))) +
+  geom_boxplot(aes(y=percent_Va, color=K_Component), alpha = 0.3,size = 1)+ theme_bw()+
+   theme(axis.text.y = element_text(size = 12), axis.text.x = element_text(angle = 90))+ #, color = H_perm_ALL$trait_colors
+  xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2")+ggtitle(str_c("Estimated Va of Leaf Architecture with 100 Permutations, 50K"))+
+  theme(legend.title = element_blank())
+ggsave("50000SNPtests/LeafTraits_BoxPlot.pdf", dpi = 300, device = "pdf")
+```
+##For evolution talk
+```{r}
+#Remaking with h2 instead of Va%
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
+
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2)) 
+
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
+  stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K1,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_ALL"), aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  #geom_point(data = filter(melted_stats_HpermALL, K_Component == "Her_ALL"),
+  #           aes(x=Mean, y=Trait), alpha = 0.5, size=1, color = "goldenrod")+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated h2 of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("50000SNPtests/EVOLUTION_ridgeplot.h2.all.png",device="png")
+```
+
+
+##MOA + Background 100 permutation test, height phenotypes, 50000 SNPs for each component
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("50000SNPtests/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+
+    scale_color_brewer(palette = "Set1")
+ggsave("50000SNPtests/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+melted_HpermALL %>% ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("50K SNP Test"))
+ggsave("50000SNPtests/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+Point range plot
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")
+ggsave("50000SNPtests/PtRange_Height.pdf",device = "pdf")
+```
+##For evolution talk
+```{r}
+#Remaking with h2 instead of Va%
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
+
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2)) 
+
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
+  stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K1,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2")+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_ALL"), aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4))+
+  #geom_point(data = filter(melted_stats_HpermALL, K_Component == "Her_ALL"),
+  #           aes(x=Mean, y=Trait), alpha = 0.5, size=1, color = "goldenrod")+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  ggtitle(str_c("Estimated h2 of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("50000SNPtests/EVOLUTION_ridgeplot.h2.heightsonly.png",device="png")
+
+filter(melted_HpermALL, K_Component != "Her_ALL") %>% ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=h2, fill=K_Component, color=K_Component))+coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("")+ylab("h2")+scale_fill_brewer(palette = "Set2")+
+  scale_color_brewer(palette = "Dark2")+ ggtitle("50K SNP Test on Heights")+
+  theme_minimal()#+
+  #theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())
+ggsave("50000SNPtests/EVOLUTION_boxplot.h2.heightonly.png",device="png", height = 7.45, width = 12.36, units = "in")
+```
+
+##MOA + Background 100 permutation test, height phenotypes, Background is made of non-MOA SNPs in genes that are the closest gene to MOA peaks
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("Genic_Background_Test/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+ ggtitle("Genic Background Test")+
+    scale_color_brewer(palette = "Set1")
+ggsave("Genic_Background_Test/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+#melted_HpermALL %>% ggplot(aes(x=Trait)) +
+#    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+#    theme(axis.text.y = element_text(size = 6))+
+#    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("Genic Background SNP Test"))
+#ggsave("Genic_Background_Test/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+Point range plot
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")+ggtitle("Genic Background Test")
+ggsave("Genic_Background_Test/PtRange_Height.pdf",device = "pdf")
+```
+
+##MOA + Background 100 permutation test, height phenotypes, Order of the Model is specified Rest, BKGD, MOA
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("Model_Order_test/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K3 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K1 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+ ggtitle("Model Term Order Test")+
+    scale_color_brewer(palette = "Set1")
+ggsave("Model_Order_test/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+#melted_HpermALL %>% ggplot(aes(x=Trait)) +
+#    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+#    theme(axis.text.y = element_text(size = 6))+
+#    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("Genic Background SNP Test"))
+#ggsave("Genic_Background_Test/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+Point range plot
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")+ggtitle("Genic Background Test")
+ggsave("Model_Order_test/PtRange_Height.pdf",device = "pdf")
+```
+
+```{r}
+#Looking at range of SD
+ggplot(H_perm_ALL) + 
+  geom_histogram(aes(x=Her_ALL_SD), binwidth = 0.005, fill = "black") + 
+  geom_histogram(aes(x=Her_K1_SD), binwidth = 0.005, fill = "green3", alpha = 0.5) + 
+  geom_histogram(aes(x=Her_K2_SD), binwidth = 0.005, fill = "blue", alpha = 0.5) + 
+  geom_histogram(aes(x=Her_K3_SD), binwidth = 0.005, fill = "red", alpha = 0.5)
+
+ggplot(H_perm_ALL, aes(x= Trait))+geom_pointrange(aes(y=Her_K3, ymin=Her_K3-Her_K3_SD, ymax=Her_K3+Her_K3_SD), alpha = 0.5, position = "jitter")+coord_flip()
+
+ggplot(H_perm_ALL, aes(x= Trait))+
+  geom_pointrange(aes(y=Her_K3, ymin=Her_K3-Her_K3_SD, ymax=Her_K3+Her_K3_SD), alpha = 0.5, position = "jitter",color="green3")+
+    geom_pointrange(aes(y=Her_K1, ymin=Her_K1-Her_K1_SD, ymax=Her_K1+Her_K1_SD), alpha = 0.5, position = "jitter",color="purple")+
+  geom_pointrange(aes(y=Her_K2, ymin=Her_K2-Her_K2_SD, ymax=Her_K2+Her_K2_SD), alpha = 0.5, position = "jitter",color="orange")+
+  coord_flip()
+
+ggplot(H_perm_ALL, aes(x= Her_K3_SD, y=Her_K3))+geom_point(alpha=0.75, aes(color = Trait))
+```
+
+##MOA + Background 100 permutation test, height phenotypes, matched the background only with distance to nearest gene (no allele frequency matching)
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+for(i in 0:99){
+  p<-str_c("MatchedDistOnly_test/Test_Results/perm_",i,".h_estimates.txt",sep="")
+  objname<-str_c("H_perm",i)
+  assign(objname, read_tsv(p,col_types = cols()))
+  assign(objname,format_Hperm(get(objname)))
+}
+```
+###Merge all the individual permutation dfs into 1 main dataframe
+```{r}
+df_names<-ls(pattern = "^H_perm")
+H_permALL<-H_perm0
+for(i in 2:length(df_names)){
+  H_permALL<-bind_rows(H_permALL, get(df_names[i]))
+}
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+
+H_perm_ALL<-mutate(H_permALL, 
+                  Va_MOA = Her_K1 / Her_ALL,
+                  Va_BKGD = Her_K2 / Her_ALL,
+                  Va_Rest = Her_K3 / Her_ALL)
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>%
+  ggplot(aes(x=Trait)) +
+    geom_boxplot(aes(y=percent_Va, color=K_Component))+
+    coord_flip()+
+    theme(axis.text.y = element_text(size = 6))+
+    xlab("Trait")+ylab("Va %")+ ggtitle("Matched only with Distance")+
+    scale_color_brewer(palette = "Set1")
+ggsave("MatchedDistOnly_test/Boxplot_Height.pdf", device = "pdf")
+melted_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component")
+#for MM poster
+#melted_HpermALL %>% ggplot(aes(x=Trait)) +
+#    geom_boxplot(aes(y=percent_Va, color=K_Component))+coord_flip()+
+#    theme(axis.text.y = element_text(size = 6))+
+#    xlab("")+ylab("Va %")+scale_color_brewer(palette = "Dark2") + ggtitle(str_c("Genic Background SNP Test"))
+#ggsave("Genic_Background_Test/MM_PosterBoxplot_Height.pdf", device = "pdf", height = 4, units = "in", dpi = 300)
+```
+Point range plot
+```{r}
+H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) %>%
+  ggplot(aes(x=Trait, y=Mean)) +
+    geom_point(data = melted_HpermALL, aes(x=Trait, y=percent_Va, group=K_Component), position=position_dodge(width = .75), alpha = 0.2)+
+  geom_pointrange(aes(ymin=Mean-std_dev, ymax=Mean+std_dev, color=K_Component),position=position_dodge(width = 0.75))+
+  coord_flip()+
+  theme(axis.text.y = element_text(size = 6))+
+  scale_color_brewer(palette = "Set1")+
+  xlab("Trait")+ylab("Mean %Va")+ggtitle("Matched only with Distance")
+ggsave("MatchedDistOnly_test/PtRange_Height.pdf",device = "pdf")
+```
+
+## For the original projections, distance to nearest gene graphs
+```{r}
+dist_to_nearest_gene<-tibble(Dist_Bin=c("Gene-500","500-1000","1000-5000","5000-max"),
+                             SNPsinMOA=c(2808489, 688842, 1807338, 3699800),
+                             SNPsoutsideMOA=c(7220307, 1670264, 11306046, 68084933))
+dist_to_nearest_gene$Dist_Bin<-factor(dist_to_nearest_gene$Dist_Bin, levels = c("Gene-500","500-1000","1000-5000","5000-max"))
+ggplot(data = dist_to_nearest_gene, aes(x = Dist_Bin))+
+  geom_bar(aes(y=SNPsoutsideMOA), stat = "identity")+
+  geom_bar(aes(y=SNPsinMOA), fill="red", stat="identity")+
+  ylab("Number of SNPs")+xlab("Distance from Nearest Gene")
+ggsave("ZealutionTalk_DistanceBinSpectrum_Both.png", device = "png")
+ggplot(data = dist_to_nearest_gene, aes(x = Dist_Bin))+
+  geom_bar(aes(y=SNPsinMOA), fill="red", stat="identity")+
+  ylab("Number of SNPs")+xlab("Distance from Nearest Gene")
+ggsave("ZealutionTalk_DistanceBinSpectrum_MOAonly.png", device = "png")
+
+```
+
+#### Simulation Test
+This is Jeff's Test
+```{r}
+Simulation_Results<-tibble(Component = c("MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA",
+                                         "BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD",
+                                         "REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST"),
+                           Estimated_Heritability = c(0.089735,0.302803,0.121439,0,0.047706,0.201367,0.391881,0.230719,0.141175,0.099898,0.59848,0.407685,0.11996,0.722034,0.484814,0.461636,0.123139,0.460329,0.585813,0.628793,0,0.104167,0.110934,0,0.046636,0.304704,0.093865,0,0.134057,0,
+                                                      0.578854,0.300289,0.549846,0.523835,0.562339,0.318015,0.12685,0.472777,0.421259,0.592735,0,0.08434,0.314304,0,0,0,0.416757,0.163482,0.026891,0,0.103857,0,0.09411,0.107677,0.029944,0,0,0.026496,0,0.143157,
+                                                      0.034327,0.094028,0.037571,0.1777,0.097464,0.174693,0.167916,0.01979,0.15492,0.016074,0.091303,0.199366,0.286538,0,0.222593,0.209789,0.156046,0.065662,0.083464,0.101015,0.309526,0.315475,0.187602,0.299003,0.311621,0.098523,0.305825,0.360968,0.252244,0.224984),
+                           Simulated_True_Heritability=c(0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,
+                                                         0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,
+                                                         0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3),
+                           Trait = c(1:30,1:30,1:30))
+Simulation_Results$Component<-factor(Simulation_Results$Component, levels = c("MOA","BKGD","REST"))
+ggplot(Simulation_Results, aes(x=Trait))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3)+
+  geom_point(aes(y=Estimated_Heritability, color = Component))+
+  facet_wrap(~Component)+
+  scale_color_brewer(palette = "Dark2")+
+  theme_bw()+
+  ylab("h2")
+ggsave("JeffsTest/SimulatedH2byComponent.png",device = "png")
+
+ggplot(Simulation_Results, aes(x=Simulated_True_Heritability, y=Estimated_Heritability))+
+  geom_abline(slope = 1, intercept = 0)+
+  geom_point(aes(color=Component),alpha =0.6)+
+  theme_bw()+
+  scale_color_brewer(palette = "Dark2")
+ggsave("JeffsTest/SimulatedvsEstimatedHeritabilities.png",device = "png")
+
+cor(x=Simulation_Results$Simulated_True_Heritability, y=Simulation_Results$Estimated_Heritability) #Pearson's Correlation 
+cor(x=Simulation_Results$Simulated_True_Heritability, y=Simulation_Results$Estimated_Heritability)^2 #I think this is R2
+```
+Boxplots instead
+```{r}
+Simulation_Results<-mutate(Simulation_Results, Setofh2 = case_when(Trait %in% 1:10 ~ "Set 1",
+                                                                   Trait %in% 11:20 ~"Set 2",
+                                                                   Trait %in% 21:30 ~ "Set 3"))
+
+ggplot(Simulation_Results, aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.png",device = "png") 
+```
+#Jeff's simulation on Nova with a 0.9/0.02/0.02/0.06 split
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+
+HighMOAsim<-read_tsv("JeffsTest/Test_Results_Sims/HighMOAh2_sims.h_estimates.txt")
+HighMOAsim<-format_Hperm(HighMOAsim)
+#Since there's only one run, the above will be our H_ALL
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+HighMOAsim<-HighMOAsim %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+HighMOAsim<-mutate(HighMOAsim, Simulated_True_Heritability = case_when(K_Component == "Her_K1" ~ 0.9,
+                                                                       K_Component == "Her_K2" ~ 0.02,
+                                                                       K_Component == "Her_K3" ~ 0.02,
+                                                                       K_Component == "Her_ALL" ~ 0.94),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = "Set4")
+HighMOAsim$Component <- factor(HighMOAsim$Component, levels = c("MOA","BKGD","REST"))
+HighMOAsim %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.highMOAh2.png",device = "png") 
+```
+###Merging the different sims 
+```{r}
+Simulation_Results<-add_row(Simulation_Results, 
+        Component = HighMOAsim$Component,
+        Simulated_True_Heritability = HighMOAsim$Simulated_True_Heritability,
+        Estimated_Heritability = HighMOAsim$Estimated_Heritability,
+        Setofh2 = HighMOAsim$Setofh2, 
+        Trait = HighMOAsim$Trait
+        )
+```
+###Full boxplot
+```{r}
+Simulation_Results %>% filter(Component %in% c("MOA","BKGD","REST")) %>% 
+ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.png",device = "png") 
+```
+#Jeff's simulation on Nova with the projected SNPs
+Used 1 SNP per Peak to create the kinship matrices with the projected SNPs
+Simulated Heritabilities were:
+             h21 = c(rep(0.1,10),rep(0.5,10),rep(0.05,10),rep(0.9, 10)), 
+             h22 = c(rep(0.5,10),rep(0.1,10),rep(0.05,10),rep(0.02, 10)), 
+             h23 = c(rep(0.1,10),rep(0.1,10),rep(0.3,10),rep(0.02, 10))
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+#Round 1
+#SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/FullSims_0423projections.h_estimates.txt")
+#Round 2
+SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/Sim.Round2_0423projections.h_estimates.txt")
+SimResults<-format_Hperm(SimResults)
+#Since there's only one run, the above will be our H_ALL
+```
+###Calculate Va and plot
+Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
+https://github.com/AndiKur4/MaizePal
+box plot
+```{r}
+SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
+                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
+                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
+                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
+SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
+SimResults %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Round2.png",device = "png") 
+```
+Here's the results of redone only set 1
+```{r}
+SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/SimSet1only_0423projections.h_estimates.txt")
+SimResults<-format_Hperm(SimResults)
+SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
+                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
+                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
+                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
+SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
+SimResults %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Set1OnlyRedo.png",device = "png") 
+```
+And here's the results redone for only set 3
+```{r}
+SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/SimSet3only_0423projections.h_estimates.txt")
+SimResults<-format_Hperm(SimResults)
+SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
+                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
+                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
+                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
+SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
+SimResults %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Set3OnlyRedo.png",device = "png") 
+```
+Here's re-trying the original markers on the nova cluster
+```{r}
+SimResults<-read_tsv("JeffsTest/Test_Results_Sims/Sim_originalRILmarkers_onNOVA.h_estimates.txt")
+SimResults<-format_Hperm(SimResults)
+SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",11:20,sep="")) ~ 0.5,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",21:30,sep="")) ~ 0.05,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",1:10,sep=""))~ 0.5,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",11:20,sep=""))~ 0.1,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",21:30,sep=""))~ 0.05,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",11:20,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",21:30,sep="")) ~ 0.3,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",11:20,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",21:30,sep=""))~ 0.4),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = case_when(Trait %in% c(paste("V",1:10,sep="")) ~ "Set1",
+                                       Trait %in% c(paste("V",11:20,sep="")) ~ "Set2",
+                                       Trait %in% c(paste("V",21:30,sep="")) ~ "Set3"))
+SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
+SimResults %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+```
+
