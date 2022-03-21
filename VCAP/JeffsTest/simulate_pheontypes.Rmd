@@ -69,13 +69,13 @@ library("tidyverse")
 ```
 
 ```{r}
-moa_K<-make_K("MOA.SNPs.bed_CentIBS_K") 
+moa_K<-make_K("Example_Kinships_1SNPperPeak/MOA.SNPs.bed_CentIBS_K") 
 smoa_K<-svd(moa_K)
 
-back_K<-make_K("BKGD.SNPs.bed_CentIBS_K") 
+back_K<-make_K("Example_Kinships_1SNPperPeak/BKGD.SNPs.bed_CentIBS_K") 
 sback_K<-svd(back_K)
 
-rest_K<-make_K("CentIBS_Rest_K") 
+rest_K<-make_K("Example_Kinships_1SNPperPeak/CentIBS_Rest_K") 
 srest_K<-svd(rest_K)
 ```
 

@@ -177,7 +177,7 @@ H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.n
   xlab("Trait")+ylab("Mean %Va")
 ggsave("100_perm_test/Mean_percentVa_byKcomponent.pdf", device = "pdf")
 ```
-##MOA + Background 100 permutation test but now will all phenotypes
+##MOA + Background 100 permutation test but now with all phenotypes
 ###Read in all files
 ```{r}
 remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
@@ -438,6 +438,7 @@ ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) +
 ggsave("Test_Results_Full/ZEALUTION_ridgeplotVaALL_MEDIAN.png",device = "png")
 
 #Remaking with h2 instead of Va%
+melted_HpermALL.Va<-melted_HpermALL
 melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
 
 melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% 
@@ -472,7 +473,94 @@ filter(melted_HpermALL, Trait %in% c("plantheight_BLUP;Hung_2012_1","plant_heigh
   theme_minimal()#+theme(panel.grid.major.y = element_blank())
 ggsave("Test_Results_Full/EVOLUTION_boxplot.heightonly.png", device = "png", height=7.45,width = 12.36,units = "in")
 ```
+Looking at Vitamin E h2
+```{r}
+VitE.h2<-filter(melted_HpermALL, Trait %in% vitamin_E) %>% mutate(Component = case_when(K_Component == "Her_K1" ~ "MOA", K_Component == "Her_K2" ~ "BKGD", K_Component == "Her_K3" ~ "REST", K_Component == "Her_ALL" ~ "Total h2"))
+VitE.h2$Component<- factor(VitE.h2$Component, levels = c("MOA","BKGD","REST","Total h2"))
 
+plastochromanol<-c("plastochromanol8")
+tocopherol<-c("alphaT","deltaT","gammaT","TotalT","alphaT_div_gammaT","gammaT_div_gammaTPlusalphaT","deltaT_div_gammaTPlusalphaT","deltaT_div_alphaT","deltaT_div_gammaT")
+tocotrienol<-c("alphaT3","deltaT3","gammaT3","TotalT3","alphaT3_div_gammaT3","gammaT3_div_gammaT3PlusalphaT3","deltaT3_div_gammaT3PlusalphaT3","deltaT3_div_alphaT3","deltaT3_div_gammaT3")
+tocochromanol<-c("TotalT_plus_T3","TotalT_div_totalT3")
+
+VitE.h2<-mutate(VitE.h2, bettertraitname = str_remove_all(Trait, "_transformed_BLUE;Diepenbrock_2017"),
+       pathway = case_when(bettertraitname %in% plastochromanol ~ "plastochromanol",
+                           bettertraitname %in% tocopherol ~ "tocopherol",
+                           bettertraitname %in% tocotrienol ~ "tocotrienol",
+                           bettertraitname %in% tocochromanol ~ "tocochromanol"))
+
+ggplot(VitE.h2,aes(x = Trait, y= h2))+
+  geom_bar(data = filter(VitE.h2, Component == "Total h2") %>%
+              group_by(Trait) %>% summarize(Mean = mean(h2)), 
+           aes(x=Trait, y=Mean),stat = "identity")+
+  geom_boxplot(data = filter(VitE.h2, Component != "Total h2"), aes(fill = Component, color = Component))+
+  scale_fill_brewer(palette = "Set2")+
+  scale_color_brewer(palette = "Dark2")+
+  coord_flip()+
+  theme_minimal()+
+  ggtitle("Vitamin E estimated h2")
+
+VitE.h2.stats<-VitE.h2 %>% group_by(Trait,Component,pathway) %>% summarize(Mean = mean(h2), Median = median(h2))
+dcast(VitE.h2.stats, Trait ~ Component, value.var = "Mean")  %>% ggplot(aes(x=reorder(Trait, `Total h2`)))+
+  geom_bar(stat = "identity", aes(y=`Total h2`), color = "black")+
+  geom_point(aes(y=REST), color = "purple") +
+  geom_point(aes(y = BKGD), color = "orange") + 
+  geom_point(aes(y = MOA), color = "green")+
+  coord_flip()+
+  theme_minimal()+
+  ggtitle("Vitamin E mean h2 estimates")
+VitE.h2.stats$Trait<-VitE.h2.stats$Trait %>% str_replace(pattern = "_transformed_BLUE;Diepenbrock_2017",replacement = "") %>% str_replace_all(pattern = "_",replacement = " ") %>% str_replace_all(pattern = "Plus", replacement = " Plus ")
+VitE.h2.stats %>% filter(Component != "Total h2") %>% 
+  ggplot(aes(fill = Component, y=Mean, x = reorder(Trait, Mean)))+
+  geom_bar(position="stack", stat="identity")+
+  ggtitle("Mean Vitamin E estimates")+
+  theme_minimal()+
+  scale_x_discrete(labels = function(Trait) str_wrap(Trait, width = 10))+
+  #coord_flip()+
+  facet_wrap(facets = vars(pathway), scales = "free_x")+
+  theme(strip.text = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size=6))+
+  scale_fill_brewer(palette = "Set2")+
+  scale_color_brewer(palette = "Dark2")+ xlab("Traits")+ ylab("h2")
+ggsave("VitaminE.h2byComponent.barchart.png", device = "png", dpi = 300, width = 9, height = 6)
+```
+Creating Supplemental table with h2 estimates for 143 traits
+```{r}
+#melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%group_by(Trait,K_Component) %>% summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2))
+#cast long data into wide frame
+h2stats.mean<-dcast(melted_stats_HpermALL, Trait ~  K_Component, value.var = "Mean")
+h2stats.median<-dcast(melted_stats_HpermALL, Trait ~  K_Component, value.var = "Median")
+h2stats.stddev<-dcast(melted_stats_HpermALL, Trait ~  K_Component, value.var = "std_dev")
+#change column names ahead of joining
+colnames(h2stats.mean)[2:5]<-colnames(h2stats.mean)[2:5] %>% str_c(.,".mean")
+colnames(h2stats.median)[2:5]<-colnames(h2stats.median)[2:5] %>% str_c(.,".median")
+colnames(h2stats.stddev)[2:5]<-colnames(h2stats.stddev)[2:5] %>% str_c(.,".StdDev")
+#join datatables
+h2.table<-full_join(x=h2stats.mean, y=h2stats.median,by="Trait") %>% full_join(x=., y=h2stats.stddev, by="Trait")
+#Replace Numbers with Component Names
+colnames(h2.table)<-colnames(h2.table) %>% str_replace_all(pattern = "Her_K1", replacement = "MOA")
+colnames(h2.table)<-colnames(h2.table) %>% str_replace_all(pattern = "Her_K2", replacement = "BKGD")
+colnames(h2.table)<-colnames(h2.table) %>% str_replace_all(pattern = "Her_K3", replacement = "REST")
+colnames(h2.table)<-colnames(h2.table) %>% str_replace_all(pattern = "Her_ALL", replacement = "TOTAL")
+#Order
+h2.table<-h2.table %>% select(c(Trait, contains("MOA"),contains("BKGD"),contains("REST"),contains("TOTAL")))
+#Save table
+write_csv(h2.table,"SupplementalTable.h2estimates.alltraitsbycomponent.csv")
+```
+Is heritability estimates for MOA correlated with overall heritability?
+```{r}
+#cor(x=h2.table$MOA.mean, y=h2.table$TOTAL.mean)
+#correlation between MOA and TOTAL
+cor(x=filter(melted_HpermALL, K_Component == "Her_K1")%>%select(h2), 
+    y=filter(melted_HpermALL, K_Component == "Her_ALL")%>%select(h2))
+#correlation between BKGD and TOTAL
+cor(x=filter(melted_HpermALL, K_Component == "Her_K2")%>%select(h2), 
+    y=filter(melted_HpermALL, K_Component == "Her_ALL")%>%select(h2))
+#correlation between Rest and TOTAL
+cor(x=filter(melted_HpermALL, K_Component == "Her_K3")%>%select(h2), 
+    y=filter(melted_HpermALL, K_Component == "Her_ALL")%>%select(h2))
+```
 ####Testing for significant differences in Va by K_component and trait
 Testing it out as a general
 ```{r}
@@ -541,10 +629,88 @@ ANOVA.Results
 BH05.aov<-filter(ANOVA.Results, P_val <= ANOVA.Results$BH_05)
 
 ```
+All the traits were significantly different when tested for percent_VA ~ K_component + 0
 ```{r}
-filter(Contrast.Results, P_val >= 0.05)
+filter(Contrast.Results, P_val >= 0.05) #Contrasts for traits that weren't significant
+filter(Contrast.Results, P_val >= 0.05 & Contrast_Name %in% c("Va_Rest-Va_MOA", "Va_BKGD-Va_MOA"))
+notSigTraits<-filter(Contrast.Results, P_val >= 0.05 & Contrast_Name %in% c("Va_Rest-Va_MOA", "Va_BKGD-Va_MOA")) %>% select(Trait)
+filter(melted_stats_HpermALL, Trait %in% notSigTraits$Trait)
+filter(Contrast.Results, Contrast_Name == "Va_BKGD-Va_MOA" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the MOA estimate was larger than the Background estimated Va and significant
 ```
+How many traits had a percent Va for MOA that was 0.5 or higher?
+```{r}
+melted_stats_HpermALL %>% filter(K_Component == "Va_MOA" & Mean >= 0.5) %>% nrow()
+111/143
+```
+Remaking stats with h2 instead of Va%
+```{r}
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
 
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2))
+
+model.1 <- aov(h2 ~ K_Component + Trait, data= melted_HpermALL)
+summary(model.1)
+TukeyHSD(model.1,which = "K_Component")
+
+#Loop to test for differences in TPM by Pangene and MOA SNP
+trait.list<-H_perm_ALL$Trait %>% unique() 
+
+aov.p<-c()
+trait<-c()
+f.stat<-c()
+trait<-c()
+con.trait<-c()
+con.name<-c()
+con.p<-c()
+con.diff<-c()
+
+for(i in 1:length(trait.list)){
+  t<-filter(melted_HpermALL, Trait == trait.list[i])
+  agep<-aov(h2 ~ K_Component + 0, data = t)
+  con<-TukeyHSD(agep, which = "K_Component")
+  aov.p<-c(aov.p, summary(agep)[[1]][[5]][[1]])
+  f.stat<-c(f.stat, summary(agep)[[1]][[4]][[1]])
+  trait<-c(trait,trait.list[i])
+  con.trait<-c(con.trait,trait.list[i],trait.list[i],trait.list[i] )
+  con.name<-c(con.name, con$K_Component %>% dimnames()%>% .[[1]])
+  con.p<-c(con.p, con$K_Component[,4]) %>% unname()
+  con.diff<-c(con.diff, con$K_Component[,1]) %>% unname()
+}
+ANOVA.Results<-tibble(P_val = aov.p, F_Stat =f.stat,Trait = trait)
+Contrast.Results<-tibble(Trait = con.trait, Contrast_Name = con.name, P_val = con.p ,Contrast_Difference = con.diff)
+
+nrow(ANOVA.Results)
+0.05/143 #Bonferroni cut off
+#Which of the tests meet the Bonferroni cut off?
+Bonferroni.aov<-filter(ANOVA.Results, P_val <=  0.0003496503) 
+
+###Calculate Benjamini-Hochberg values for test values
+ANOVA.Results<-arrange(ANOVA.Results, P_val) #arrange p-values smallest to largest
+#Find the largest integer k so that p(k) <= k*alpha/m
+BH_05<-c()
+for(k in 1:nrow(ANOVA.Results)){
+  temp<-(k*0.05)/nrow(ANOVA.Results)
+  BH_05<-c(BH_05,temp)
+}
+ANOVA.Results<-add_column(ANOVA.Results,BH_05)
+ANOVA.Results
+BH05.aov<-filter(ANOVA.Results, P_val <= ANOVA.Results$BH_05)
+
+```
+All traits are significantly different by component for h2
+```{r}
+filter(Contrast.Results, P_val >= 0.05) #Contrasts for traits that weren't significant
+filter(Contrast.Results, P_val >= 0.05 & Contrast_Name %in% c("Her_K3-Her_K1", "Her_K2-Her_K1")) #K1 = MOA, K2 = BKGD, K3= Rest
+notSigTraits<-filter(Contrast.Results, P_val >= 0.05 & Contrast_Name %in% c("Her_K3-Her_K1", "Her_K2-Her_K1")) %>% select(Trait)
+filter(melted_stats_HpermALL, Trait %in% notSigTraits$Trait)
+filter(Contrast.Results, Contrast_Name == "Her_K2-Her_K1" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the MOA estimate was larger than the Background 
+#estimated Va and significant
+# How often was background estimates higher than rest
+filter(Contrast.Results, Contrast_Name == "Her_K3-Her_K2" & P_val <= 0.05 & Contrast_Difference < 0)
+```
 
 ##MOA + Background 100 permutation test, height phenotypes, 10000 SNPs for each component
 ###Read in all files
@@ -639,6 +805,71 @@ filter(melted_HpermALL, K_Component != "Her_ALL") %>% ggplot(aes(x=Trait)) +
     #theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())
 ggsave("10000SNPtests/EVOLUTION_boxplot.h2.heightonly.png",device="png", height=7.45,width = 12.36,units = "in")
 ```
+Testing for differences in h2 estimates for 10K downsampling between components
+```{r}
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
+
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2))
+
+model.1 <- aov(h2 ~ K_Component + Trait, data= melted_HpermALL)
+summary(model.1)
+TukeyHSD(model.1,which = "K_Component")
+
+#Loop to test for differences in TPM by Pangene and MOA SNP
+trait.list<-H_perm_ALL$Trait %>% unique() 
+
+aov.p<-c()
+trait<-c()
+f.stat<-c()
+trait<-c()
+con.trait<-c()
+con.name<-c()
+con.p<-c()
+con.diff<-c()
+
+for(i in 1:length(trait.list)){
+  t<-filter(melted_HpermALL, Trait == trait.list[i])
+  agep<-aov(h2 ~ K_Component + 0, data = t)
+  con<-TukeyHSD(agep, which = "K_Component")
+  aov.p<-c(aov.p, summary(agep)[[1]][[5]][[1]])
+  f.stat<-c(f.stat, summary(agep)[[1]][[4]][[1]])
+  trait<-c(trait,trait.list[i])
+  con.trait<-c(con.trait,trait.list[i],trait.list[i],trait.list[i] )
+  con.name<-c(con.name, con$K_Component %>% dimnames()%>% .[[1]])
+  con.p<-c(con.p, con$K_Component[,4]) %>% unname()
+  con.diff<-c(con.diff, con$K_Component[,1]) %>% unname()
+}
+ANOVA.Results<-tibble(P_val = aov.p, F_Stat =f.stat,Trait = trait)
+Contrast.Results<-tibble(Trait = con.trait, Contrast_Name = con.name, P_val = con.p ,Contrast_Difference = con.diff)
+
+nrow(ANOVA.Results)
+0.05/6 #Bonferroni cut off
+#Which of the tests meet the Bonferroni cut off?
+Bonferroni.aov<-filter(ANOVA.Results, P_val <=  0.008333333) 
+
+###Calculate Benjamini-Hochberg values for test values
+ANOVA.Results<-arrange(ANOVA.Results, P_val) #arrange p-values smallest to largest
+#Find the largest integer k so that p(k) <= k*alpha/m
+BH_05<-c()
+for(k in 1:nrow(ANOVA.Results)){
+  temp<-(k*0.05)/nrow(ANOVA.Results)
+  BH_05<-c(BH_05,temp)
+}
+ANOVA.Results<-add_column(ANOVA.Results,BH_05)
+ANOVA.Results
+BH05.aov<-filter(ANOVA.Results, P_val <= ANOVA.Results$BH_05)
+```
+All height traits are significantly different by component for h2
+```{r}
+filter(Contrast.Results, P_val >= 0.05) #Contrasts for traits that weren't significant
+filter(Contrast.Results, Contrast_Name == "Her_K2-Her_K1" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the MOA estimate was larger than the Background 
+#estimated h2 and significant
+# How often was background estimates higher than rest
+filter(Contrast.Results, Contrast_Name == "Her_K3-Her_K2" & P_val <= 0.05 & Contrast_Difference < 0)
+```
 ##Biased vs Unbiased 100 permutation test, height phenotypes
 ###Read in all files
 ```{r}
@@ -720,7 +951,6 @@ Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
 https://github.com/AndiKur4/MaizePal
 box plot
 ```{r}
-
 H_perm_ALL<-mutate(H_permALL, 
                   Va_MOA = Her_K1 / Her_ALL,
                   Va_BKGD = Her_K2 / Her_ALL,
@@ -910,7 +1140,71 @@ filter(melted_HpermALL, K_Component != "Her_ALL") %>% ggplot(aes(x=Trait)) +
   #theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())
 ggsave("50000SNPtests/EVOLUTION_boxplot.h2.heightonly.png",device="png", height = 7.45, width = 12.36, units = "in")
 ```
+Testing for differences in h2 estimates for 50K downsampling between components
+```{r}
+melted_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% melt(id.vars="Trait", value.name="h2", variable.name="K_Component")
 
+melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Trait)) %>% 
+  melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
+  group_by(Trait,K_Component) %>% 
+  summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2))
+
+model.1 <- aov(h2 ~ K_Component + Trait, data= melted_HpermALL)
+summary(model.1)
+TukeyHSD(model.1,which = "K_Component")
+
+#Loop to test for differences in TPM by Pangene and MOA SNP
+trait.list<-H_perm_ALL$Trait %>% unique() 
+
+aov.p<-c()
+trait<-c()
+f.stat<-c()
+trait<-c()
+con.trait<-c()
+con.name<-c()
+con.p<-c()
+con.diff<-c()
+
+for(i in 1:length(trait.list)){
+  t<-filter(melted_HpermALL, Trait == trait.list[i])
+  agep<-aov(h2 ~ K_Component + 0, data = t)
+  con<-TukeyHSD(agep, which = "K_Component")
+  aov.p<-c(aov.p, summary(agep)[[1]][[5]][[1]])
+  f.stat<-c(f.stat, summary(agep)[[1]][[4]][[1]])
+  trait<-c(trait,trait.list[i])
+  con.trait<-c(con.trait,trait.list[i],trait.list[i],trait.list[i] )
+  con.name<-c(con.name, con$K_Component %>% dimnames()%>% .[[1]])
+  con.p<-c(con.p, con$K_Component[,4]) %>% unname()
+  con.diff<-c(con.diff, con$K_Component[,1]) %>% unname()
+}
+ANOVA.Results<-tibble(P_val = aov.p, F_Stat =f.stat,Trait = trait)
+Contrast.Results<-tibble(Trait = con.trait, Contrast_Name = con.name, P_val = con.p ,Contrast_Difference = con.diff)
+
+nrow(ANOVA.Results)
+0.05/6 #Bonferroni cut off
+#Which of the tests meet the Bonferroni cut off?
+Bonferroni.aov<-filter(ANOVA.Results, P_val <=  0.008333333) 
+
+###Calculate Benjamini-Hochberg values for test values
+ANOVA.Results<-arrange(ANOVA.Results, P_val) #arrange p-values smallest to largest
+#Find the largest integer k so that p(k) <= k*alpha/m
+BH_05<-c()
+for(k in 1:nrow(ANOVA.Results)){
+  temp<-(k*0.05)/nrow(ANOVA.Results)
+  BH_05<-c(BH_05,temp)
+}
+ANOVA.Results<-add_column(ANOVA.Results,BH_05)
+ANOVA.Results
+BH05.aov<-filter(ANOVA.Results, P_val <= ANOVA.Results$BH_05)
+```
+All height traits are significantly different by component for h2
+```{r}
+filter(Contrast.Results, P_val >= 0.05) #Contrasts for traits that weren't significant
+filter(Contrast.Results, Contrast_Name == "Her_K2-Her_K1" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the MOA estimate was larger than the Background 
+#estimated h2 and significant
+# How often was background estimates higher than rest
+filter(Contrast.Results, Contrast_Name == "Her_K3-Her_K2" & P_val <= 0.05 & Contrast_Difference < 0)
+```
 ##MOA + Background 100 permutation test, height phenotypes, Background is made of non-MOA SNPs in genes that are the closest gene to MOA peaks
 ###Read in all files
 ```{r}
@@ -1402,4 +1696,48 @@ SimResults %>% filter(Component != "TOTAL")%>%
   theme_bw()+
   ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
 ```
+Here's the results for GATK (same kinship as above but with different traits simulated for an accurate set 4)
+###Read in all files
+```{r}
+remove(list = ls(pattern = "^H_perm"))
+SimResults<-read_tsv("JeffsTest/Example_Kinships_1SNPperPeak/Sim_gatk_Round2.h_estimates.txt")
+SimResults<-format_Hperm(SimResults)
+```
 
+```{r}
+SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
+SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
+                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
+                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
+                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
+                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
+                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
+                                         K_Component == "Her_K2" ~ "BKGD",
+                                         K_Component == "Her_K3" ~ "REST",
+                                         K_Component == "Her_ALL" ~ "TOTAL"),
+                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
+                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
+                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
+                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
+SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
+SimResults %>% filter(Component != "TOTAL")%>% 
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
+  geom_boxplot(aes(color=Component))+
+  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Set2")+
+  theme_bw()+
+  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("JeffsTest/Simulatedh2Boxplot.gatkSNPs.Round2.png",device = "png") 
+```
