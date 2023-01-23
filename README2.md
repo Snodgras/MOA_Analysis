@@ -235,15 +235,6 @@ Use `seqpurge_for_paired_end.sh`
 ## Checking the mapping stats for Tzi8
 `picard_mappingstats.sh` run on `/ptmp/LAS/mhufford/NAM-MOA/Arun_notebook/scripts/id-files/Tzi8*filtered-RG.bam`
 
-## Putting files on the gdrive for Thomas
-```
-rclone --drive-shared-with-me copy file gdrive:masked-NAM-genomes
-
-rclone --drive-shared-with-me copy CML277w4_L2_2.fq.gz gdrive:masked-NAM-genomes/raw_reads/
-
-for i in *NC358*.bam ; do rclone --drive-shared-with-me copy $i gdrive:masked-NAM-genomes/NC358-intermediate-files/ ; done
-for i in *filtered.reads ; do rclone --drive-shared-with-me --progress copy $i gdrive:masked-NAM-genomes/filtered-reads-2.0/ ; done
-```
 
 # Using MOA-Seq to identify allele-specific TF binding sites (ASBs)
 
