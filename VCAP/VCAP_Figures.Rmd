@@ -229,7 +229,7 @@ H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.n
 ```{r}
 tassel_architecture<-c("tassel_length_BLUP;Brown_2011","spike_length_BLUP;Brown_2011","branch_zone_BLUP;Brown_2011","branch_number_transformed_BLUP;Brown_2011","tassprimbranchno_BLUP;Hung_2012_1","tasslength_BLUP;Hung_2012_1")
 ear_architecture<-c("cob_length_BLUP;Brown_2011","cob_diameter_BLUP;Brown_2011","ear_row_number_transformed_BLUP;Brown_2011","cobdiam_BLUP;Hung_2012_1","coblength_BLUP;Hung_2012_1","earrowno_BLUP;Hung_2012_1","kernelnoperrow_BLUP;Hung_2012_1","earmass_BLUP;Hung_2012_1","cobmass_BLUP;Hung_2012_1","totalkernelweight_BLUP;Hung_2012_1","weight20kernels_BLUP;Hung_2012_1","totalkernelno_BLUP;Hung_2012_1","starch_kernel_BLUP;Cook_2012","protein_kernel_BLUP;Cook_2012","oil_kernel_BLUP;Cook_2012")
-penetrometer<-c("WI_rind_penetrometer_resistance_BLUE;Peiffer_2013","WI_rind_penetrometer_resistance_BLUP;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUE;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUP;Peiffer_2013","MO_rind_penetrometer_resistance_BLUE;Peiffer_2013","MO_rind_penetrometer_resistance_BLUP;Peiffer_2013","NY_rind_penetrometer_resistance_BLUE;Peiffer_2013","NY_rind_penetrometer_resistance_BLUP;Peiffer_2013")
+stalk_strength<-c("WI_rind_penetrometer_resistance_BLUE;Peiffer_2013","WI_rind_penetrometer_resistance_BLUP;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUE;Peiffer_2013","ALL_rind_penetrometer_resistance_BLUP;Peiffer_2013","MO_rind_penetrometer_resistance_BLUE;Peiffer_2013","MO_rind_penetrometer_resistance_BLUP;Peiffer_2013","NY_rind_penetrometer_resistance_BLUE;Peiffer_2013","NY_rind_penetrometer_resistance_BLUP;Peiffer_2013")
 disease<-c("southern_leaf_blight_BLUP;Bian_2014_Kump_2011","lesion_severity_BLUP;Olukolu_2014","sqrt_diseased_leaf_area1_BLUP;Poland_2011","sqrt_diseased_leaf_area2_BLUP;Poland_2011","sqrt_diseased_leaf_area3_BLUP;Poland_2011","diseased_leaf_area1_BLUP;Poland_2011","diseased_leaf_area2_BLUP;Poland_2011","diseased_leaf_area3_BLUP;Poland_2011","northern_leaf_blight_index_BLUP;Poland_2011")
 plant_architecture<-c("height_ratio_BLUP;Olukolu_2014","stalk_width_ratio_BLUP;Olukolu_2014","leaf_length_BLUP;Tian_2011","leaf_width_BLUP;Tian_2011","upper_leaf_angle_BLUP;Tian_2011","last_leaf_with_epicuticular_wax;Foerster_2015","ALL_ear_height_BLUE;Peiffer_2013","ALL_ear_height_BLUP;Peiffer_2013","plantheight_BLUP;Hung_2012_1","earheight_BLUP;Hung_2012_1","leaflength_BLUP;Hung_2012_1","leafwidth_BLUP;Hung_2012_1","upperleafangle_BLUP;Hung_2012_1","nodenumberbelowear_BLUP;Hung_2012_1","nodenumberaboveear_BLUP;Hung_2012_1","numbraceroots_BLUP;Hung_2012_1","plant_height_BLUP;Peiffer_2014","ear_height_BLUP;Peiffer_2014","plant_height_minus_ear_height_BLUP;Peiffer_2014","ear_height_div_plant_height_BLUP;Peiffer_2014","plant_height_div_DTA_BLUP;Peiffer_2014","leaf_angle_boxcox_transformed_BLUP;Tian_2011")
 flowering_time<-c("DTA_ratio_BLUP;Olukolu_2014","ALL_DTA_BLUE;Peiffer_2013","ALL_DTA_BLUP;Peiffer_2013","DTS_BLUP;Hung_2012_1","DTA_BLUP;Hung_2012_1","asi_BLUP;Hung_2012_1","DTA_BLUP;Buckler_2009","DTS_BLUP;Buckler_2009","DTA_BLUP;Wallace_2014","ASI_BLUP;Buckler_2009","GDD_DTS_BLUP;Peiffer_2014","GDD_DTA_BLUP;Peiffer_2014","GDD_ASI_BLUP;Peiffer_2014","DTS_BLUP;Peiffer_2014","DTA_BLUP;Peiffer_2014","ASI_BLUP;Peiffer_2014","GDD_DTA_long_BLUP;Hung_2012","GDD_DTA_short_BLUP;Hung_2012","GDD_DTA_photo_resp_BLUP;Hung_2012","GDD_DTS_long_BLUP;Hung_2012","GDD_DTS_short_BLUP;Hung_2012","GDD_DTS_photo_resp_BLUP;Hung_2012","GDD_DTA_NC06_BLUP;Hung_2012","GDD_DTS_NC06_BLUP;Hung_2012","GDD_DTA_MO06_BLUP;Hung_2012","GDD_DTS_MO06_BLUP;Hung_2012","GDD_DTA_NY06_BLUP;Hung_2012","GDD_DTS_NY06_BLUP;Hung_2012","GDD_DTA_IL06_BLUP;Hung_2012","GDD_DTS_IL06_BLUP;Hung_2012","GDD_DTA_FL06_BLUP;Hung_2012","GDD_DTS_FL06_BLUP;Hung_2012","GDD_DTA_PR06_BLUP;Hung_2012","GDD_DTS_PR06_BLUP;Hung_2012","GDD_DTA_NC07_BLUP;Hung_2012","GDD_DTS_NC07_BLUP;Hung_2012","GDD_DTA_MO07_BLUP;Hung_2012","GDD_DTS_MO07_BLUP;Hung_2012","GDD_DTA_NY07_BLUP;Hung_2012","GDD_DTS_NY07_BLUP;Hung_2012","GDD_DTA_IL07_BLUP;Hung_2012","GDD_DTS_IL07_BLUP;Hung_2012","GDD_DTA_FL07_BLUP;Hung_2012","GDD_DTS_FL07_BLUP;Hung_2012")
@@ -240,11 +240,12 @@ metabolites<-c("chlorophylla_BLUP;Wallace_2014","chlorophyllb_BLUP;Wallace_2014"
 Splitting the plot by category
 ```{r}
 melted_stats_HpermALL<-H_perm_ALL %>% select(c(contains("Va"),Trait)) %>% melt(id.vars="Trait", value.name="percent_Va", variable.name="K_Component") %>% group_by(Trait,K_Component) %>% summarize(Mean = mean(percent_Va), Median = median(percent_Va), std_dev=sd(percent_Va)) 
+#can also use the above command to get the statistics for Va% for each component across all traits and by traits
 
 melted_HpermALL<-mutate(melted_HpermALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
                                   Trait %in% ear_architecture ~ "ear_architecture",
                                   Trait %in% disease ~ "disease",
-                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% stalk_strength ~ "stalk_strength",
                                   Trait %in% plant_architecture ~ "plant_architecture",
                                   Trait %in% flowering_time ~ "flowering_time",
                                   Trait %in% misc ~ "misc",
@@ -253,7 +254,7 @@ melted_HpermALL<-mutate(melted_HpermALL, Trait_Category = case_when(Trait %in% t
 melted_stats_HpermALL<-mutate(melted_stats_HpermALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
                                   Trait %in% ear_architecture ~ "ear_architecture",
                                   Trait %in% disease ~ "disease",
-                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% stalk_strength ~ "stalk_strength",
                                   Trait %in% plant_architecture ~ "plant_architecture",
                                   Trait %in% flowering_time ~ "flowering_time",
                                   Trait %in% misc ~ "misc",
@@ -283,7 +284,7 @@ for(i in ls(pattern = "ptrange")){ggsave(file=str_c("Test_Results_Full/",i,".pdf
 H_perm_ALL<-mutate(H_perm_ALL, Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
                                   Trait %in% ear_architecture ~ "ear_architecture",
                                   Trait %in% disease ~ "disease",
-                                  Trait %in% penetrometer ~ "penetrometer",
+                                  Trait %in% stalk_strength ~ "stalk_strength",
                                   Trait %in% plant_architecture ~ "plant_architecture",
                                   Trait %in% flowering_time ~ "flowering_time",
                                   Trait %in% misc ~ "misc",
@@ -291,7 +292,7 @@ H_perm_ALL<-mutate(H_perm_ALL, Trait_Category = case_when(Trait %in% tassel_arch
                                   Trait %in% metabolites ~ "metabolites"),
                      trait_colors = case_when(Trait_Category == "ear_architecture" ~ "chocolate3",
                                               Trait_Category == "disease" ~ "darkgreen",
-                                              Trait_Category == "penetrometer" ~ "deepskyblue",
+                                              Trait_Category == "stalk_strength" ~ "deepskyblue",
                                               Trait_Category == "plant_architecture" ~ "firebrick",
                                               Trait_Category == "flowering_time" ~ "goldenrod",
                                               Trait_Category == "misc" ~ "grey61",
@@ -422,6 +423,31 @@ ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) +
   ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
   theme(legend.title = element_blank())
 ggsave("Test_Results_Full/ZEALUTION_ridgeplotVaALL_MEAN.png",device = "png")
+##trying to get the traits labeled with colors
+#need to create a vector that has the trait colors in order of VaMOA (needs to be just 1 length(It's not currently working because it's just doing all the permutations!!Not a unique list!))
+Vatrait_label<-filter(melted_stats_HpermALL, K_Component == "Va_MOA") %>% arrange(., Mean) %>% mutate(., trait_colors = case_when(Trait_Category == "ear_architecture" ~ "chocolate3",
+                                              Trait_Category == "disease" ~ "darkgreen",
+                                              Trait_Category == "stalk_strength" ~ "deepskyblue",
+                                              Trait_Category == "plant_architecture" ~ "firebrick",
+                                              Trait_Category == "flowering_time" ~ "goldenrod",
+                                              Trait_Category == "misc" ~ "grey61",
+                                              Trait_Category == "vitamin_E" ~ "navyblue",
+                                              Trait_Category == "metabolites" ~ "purple",
+                                              Trait_Category == "tassel_architecture" ~ "violetred1")) %>% ungroup() %>% select(c(Trait_Category,trait_colors)) 
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) + 
+  stat_density_ridges(aes(x=Va_Rest,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_BKGD,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Va_MOA,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("Va %") +
+  scale_fill_brewer(palette = "Dark2",labels = c("MOA", "Background", "Rest"))+
+  geom_point(data = melted_stats_HpermALL, aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4), labels = c("MOA Mean", "Background Mean", "Rest Mean"))+
+  theme_minimal()+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(color = Vatrait_label$trait_colors))+
+  scale_y_discrete(label=Vatrait_label$Trait_Category)+
+  ggtitle(str_c("Estimated Va of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank())
+ggsave("Test_Results_Full/RidgeplotVaALL_MEAN_traitlabeled.png",device = "png")
 ###Uses MEDIAN for points
 ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_MOA))) + 
   stat_density_ridges(aes(x=Va_Rest,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
@@ -445,22 +471,38 @@ melted_stats_HpermALL<-H_perm_ALL %>% select(c(Her_K1, Her_K2,Her_K3,Her_ALL,Tra
   melt(id.vars="Trait", value.name="h2", variable.name="K_Component") %>%
   group_by(Trait,K_Component) %>% 
   summarize(Mean = mean(h2), Median = median(h2), std_dev=sd(h2)) 
-
+h2trait_label<-filter(melted_stats_HpermALL, K_Component == "Her_K1") %>% arrange(., Mean) %>% mutate(., Trait_Category = case_when(Trait %in% tassel_architecture ~ "tassel_architecture",
+                                  Trait %in% ear_architecture ~ "ear_architecture",
+                                  Trait %in% disease ~ "disease",
+                                  Trait %in% stalk_strength ~ "stalk_strength",
+                                  Trait %in% plant_architecture ~ "plant_architecture",
+                                  Trait %in% flowering_time ~ "flowering_time",
+                                  Trait %in% misc ~ "misc",
+                                  Trait %in% vitamin_E ~ "vitamin_E",
+                                  Trait %in% metabolites ~ "metabolites"),
+                                  trait_colors = case_when(Trait_Category == "ear_architecture" ~ "chocolate3",
+                                              Trait_Category == "disease" ~ "darkgreen",
+                                              Trait_Category == "stalk_strength" ~ "deepskyblue",
+                                              Trait_Category == "plant_architecture" ~ "firebrick",
+                                              Trait_Category == "flowering_time" ~ "goldenrod",
+                                              Trait_Category == "misc" ~ "grey61",
+                                              Trait_Category == "vitamin_E" ~ "navyblue",
+                                              Trait_Category == "metabolites" ~ "purple",
+                                              Trait_Category == "tassel_architecture" ~ "violetred1")) %>% ungroup() %>% select(c(Trait_Category,trait_colors)) 
 ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
   stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
   stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
   stat_density_ridges(aes(x=Her_K1,fill="1_MOA"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
   ylab("Trait")+ xlab("h2") +
-  scale_fill_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Dark2",labels = c("MOA", "Background", "Rest"))+
   geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_ALL"), aes(y=Trait, x=Mean, shape = K_Component)) + 
-  scale_shape_manual(values=c(16, 6, 4))+
-  #geom_point(data = filter(melted_stats_HpermALL, K_Component == "Her_ALL"),
-  #           aes(x=Mean, y=Trait), alpha = 0.5, size=1, color = "goldenrod")+
+  scale_shape_manual(values=c(16, 6, 4), labels =c("MOA Mean", "Background Mean", "Rest Mean"))+
   theme_minimal()+
-  theme(panel.grid.major.y = element_blank(), axis.text.y = element_blank())+
+  theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(color = Vatrait_label$trait_colors))+
+  scale_y_discrete(label=Vatrait_label$Trait_Category)+
   ggtitle(str_c("Estimated h2 of All Traits with 100 Permutations"))+
   theme(legend.title = element_blank())
-ggsave("Test_Results_Full/EVOLUTION_ridgeplot.h2.all.png", device = "png")
+ggsave("Test_Results_Full/Ridgeplot.h2.all.traitlabeled.png", device = "png")
 
 filter(melted_HpermALL, Trait %in% c("plantheight_BLUP;Hung_2012_1","plant_height_BLUP;Peiffer_2014","earheight_BLUP;Hung_2012_1","ear_height_BLUP;Peiffer_2014", "ALL_ear_height_BLUP;Peiffer_2013","ALL_ear_height_BLUE;Peiffer_2013") & K_Component != "Her_ALL") %>%
   group_by(Trait) %>% 
@@ -524,6 +566,20 @@ VitE.h2.stats %>% filter(Component != "Total h2") %>%
   scale_fill_brewer(palette = "Set2")+
   scale_color_brewer(palette = "Dark2")+ xlab("Traits")+ ylab("h2")
 ggsave("VitaminE.h2byComponent.barchart.png", device = "png", dpi = 300, width = 9, height = 6)
+
+filter(VitE.h2, K_Component != "Her_ALL") %>%
+ggplot(aes(y=bettertraitname)) + 
+  stat_density_ridges(aes(x=h2,fill=K_Component),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2",labels = c("MOA", "Background", "Rest"))+
+  #geom_point(data = filter(VitE.h2.stats, Component != "Total h2"), aes(y=Trait, x=Mean, shape = Component)) + 
+  #scale_shape_manual(values=c(16, 6, 4), labels =c("MOA Mean", "Background Mean", "Rest Mean"))+
+  theme_minimal()+
+  theme( axis.text.y = element_blank(), panel.border = element_rect(color = "black", fill = NA, size = 1), strip.background = element_rect(color="black", size=1.5, linetype="solid"), strip.text.y = element_text(face = "bold"))+
+  facet_grid(facets = vars(pathway), scales = "free_y")+
+  ggtitle(str_c("Estimated h2 of Vitamin E traits"))+
+  theme(legend.title = element_blank())
+ggsave("VitaminE.h2byComponent.ridgeplot.png", device = "png")
 ```
 Creating Supplemental table with h2 estimates for 143 traits
 ```{r}
