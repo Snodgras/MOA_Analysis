@@ -679,6 +679,63 @@ tail -n +2 Simulated_Phenotypes.Round2.txt | paste BKGD.SNPs.bed_CentIBS_K.grm.i
 sed -i '' -e 's/ /\t/g' Simulated_Phenotypes.Round2.plink
 ```
 
+#VCAP of 21 lines with different peaks called for MOA
+###Input files
+From Julia:
+- `EG80.WW.all_peaks.merged.21_NAMs.bed` which is a bed file with peak coordinates (unlabeled)
+- `Genotypes_21_lines_AF_for_Sam.bed` which is the SNP coordinates and genotypes across all lines + allele frequency
+
+##Step 0:
+I need to create: *start at line 364*
+_Create allele frequency and distance containing SNP bed files for MOA peak and non-peak regions_
+_If using new markers, make the full kinship matrix_
+
+Pulling out coordinates, AF 
+```
+#select the coordinate columns and allele frequency column
+awk -v OFS='\t' '{print $1,$2,$3,$29}' Genotypes_21_lines_AF_for_Sam.bed > AllSNPs_AF.bed
+***sed -i 's/B73\-//g' AllSNPs_AF.bed #may not need this with this input file
+```
+Calculating distance from each peak to nearest gene (requires gff of B73v5)
+Use script `gene_distance.sh` and `slurm_gene_distance.sh`
+```
+#!/bin/bash
+GFF=$1
+MOABED=$2
+module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/
+module load bedops
+#convert2bed --input=gff --output=bed < $GFF > gff.bed
+
+#need to separate out only the gene coordinates (not exon, chromosome, mRNA, etc.)
+#awk -v OFS='\t' '$8 ~ /gene/ {print $0}' gff.bed | sort -k1,1 -k2,2n > sorted.gene.bed
+
+#sort the peak bedfile
+sort -k1,1 -k2,2n $MOABED > sorted.$MOABED
+
+module load bedtools2
+bedtools closest -D ref -t first -a sorted.$MOABED -b sorted.gene.bed > out.distance.${2}.${1%_*}.bed
+
+#slurm command
+
+bash gene_distance.sh ZmB73v5.gff Genotypes_21_lines_AF_for_Sam.bed #add distance to all the SNPs #(didn't work; probably due to header...)
+bash gene_distance.sh ZmB73v5.gff AllSNPs_AF.bed #(manually remove the header line first)
+bash gene_distance.sh ZmB73v5.gff EG80.WW.all_peaks.merged.21_NAMs.bed #add distance to all the peaks
+```
+Then to make our alignment and distance bed files needed for the SNP sampling script
+```
+awk -v OFS='\t' '{print $1,$2,$3, $4,$15}' out.distance.Summary_MOASNPs_AF.bed.B73v5.bed > alignSNP_AF_dist.txt
+awk -v OFS='\t' '{print $1,$2,$3,$14}' out.distance.EG80.WW.all_peaks.merged.inclCML333.bed.B73v5.bed  > EG80WWpeak_dist.txt
+module load bedtools2
+bedtools intersect -v -a alignSNP_AF_dist.txt -b EG80WWpeak_dist.txt > nonEG80WWSNPs_AF_dist.txt
+```
+and also to make a MOA SNP AF Dist file
+```
+awk -v OFS='\t' '{print $0, "EG80WW_peak_"NR}' EG80WWpeak_dist.txt > EG80WW_peaklabeled_dist.txt
+module load bedtools2
+bedtools intersect -wb -a alignSNP_AF_dist.txt -b EG80WW_peaklabeled_dist.txt > MOA_EG80WWSNPs_AF_dist.txt
+```
+
+
 *CAN PROBABLY REMOVE EVERYTHING AFTER THIS LINE*
 ###Biased Peak Differential Expression Analysis
 
