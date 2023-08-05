@@ -842,7 +842,6 @@ Made sure that the randomization was in so it wasn't the same trait value calcul
 And created `Simulated_Phenotypes.Round2.txt`
 To convert to plink format:
 ```
-
 head -n 1 Simulated_Phenotypes.Round2.txt > Simulated_Phenotypes.Round2.plink
 #manually add in the "FID \t IID"
 tail -n +2 Simulated_Phenotypes.Round2.txt | paste BKGD.SNPs.bed_CentIBS_K.grm.id -  >> Simulated_Phenotypes.Round2.plink
