@@ -357,7 +357,7 @@ grep "NO" convergence.results | cut -f 1 | sort | uniq -c
 ###0: format files
 
 starting files: 
-`WW-MOA_ALLmm_merged.FDR0_05.tsv`
+`WW-MOA_ALLmm_merged_noSPL.FDR.tsv`
 
 ####Plink clumping:
 Want to clump the bQTL SNPs together by LD
@@ -438,7 +438,7 @@ plink --file NAM_rils_SNPs_chr10.plk --merge-list allfiles.txt --make-bed --out 
 2. Turn the `.tsv` into a bed-like format??? I need to change the first column to split into the coordinates
 ```
 echo "chr\tstart\tstop\tSNP\tP" |sed 's/\\t/\t/g' - > bQTL.padj_probgeno.bed
-awk -v OFS='\t' '{split($1,a,"-"); split(a[2],b,"_"); print b[1],b[2],b[2]+1,$2,$13}' WW-MOA_ALLmm_merged.FDR0_05.tsv >> bQTL.padj_probgeno.bed
+awk -v OFS='\t' '{split($1,a,"-"); split(a[2],b,"_"); print b[1],b[2],b[2]+1,$2,$13}' WW-MOA_ALLmm_merged_noSPL.FDR.tsv >> bQTL.padj_probgeno.bed
 ```
 3. Run the `--clump` command on the plink data (check settings)
 ```
@@ -480,159 +480,14 @@ manually change the first row (header) from 0.00000 to P for the last column
 Also making the SNP marker names the same: `sed -i -e 's/B73-chr/S/' bQTL.padj_probgeno.numeric.bed`
 
 Retrying with all of the specific flags of the previous clump attempts (and it worked!)
-
-4. Turn clumped output into a bed-ish file to run the intersect step with of the original pipeline to create bQTL and non-bQTL SNPs
-
-Reformat the clumped index SNPs in bed file format with +/- 75 bp on either side:
+Specifically using: 
 ```
-tail -n +2 NAM_rils_SNPs.padj_probgeno.clumped.clumped | awk -v OFS='\t' '{print "chr"$1, $4-75, $4+75, $3}' - > NAM_rils_SNPs.padj_probgeno.clumped.bed
-```
-manually remove the two empty rows at the bottom of the file
-
-Get allele frequency/distance bed files for bQTL SNPs and nonbQTL SNPs
-Can start with the intersection step since the genotype file has already been formatted. 
-```
-module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/
-module load bedtools2
-bedtools intersect -v -a alignSNP_AF_dist.txt -b NAM_rils_SNPs.padj_probgeno.clumped.bed > nonbQTL_AF_dist.txt
-bedtools intersect -wb -a alignSNP_AF_dist.txt -b NAM_rils_SNPs.padj_probgeno.clumped.bed > bQTL_AF_dist.txt
-```
-5. Run the SNP selection script
-Modified to `bQTL.SNPselection.R` to not subsample the bQTL, it should only create a matched background
-
-Need to create commands to run it in parallel
-```
-for i in {0..99} ; do mkdir bQTL/perm_${i} ; echo module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/ \; module load r r-devtools r-tidyr r-dplyr \; ./bQTL.SNPselection.R  bQTL_AF_dist.txt nonbQTL_AF_dist.txt bQTL/perm_${i}/coords_${i}_ >> bQTL.selection.commands ; done
-python ../makeSLURM.py 1 bQTL.selection.commands
+plink --bfile NAM_rils_SNPs_allchr --clump bQTL.padj_probgeno.numeric.bed --clump-kb 0.150 --clump-r2 0.99 --clump-field P --clump-p1 0.1 --clump-p2 0.3 -out NAM_rils_SNPs.padj_probgeno.clumped
 ```
 
-6. Making the Kinships
-_Change the whole genome kinship name and thus which genotypes are used in the slurm script for making the kinships_
-Using the gatk resequenced SNPs (`NAM_rils_SNPs_allchr.hmp.txt`)
+*Note: A number of top variants weren't in the main dataset (NAM Genotypes) and so couldn't be clumped*
+All skipped variants were written to the log file `NAM_rils_SNPs.padj_probgeno.clumped.log`
 
-*For the first time making the whole genome kinship matrix*
-specify exclusive use of a huge node and increase the heap size in the tassel argument to 
-2/3 the total memory  of the huge node (2Tb) `-Xmx2000g` instead of `-Xmx64g`
-
-_Add the slurm script to each permutation directory_
-Before doing this, make sure that the name of the whole genome kinship matrix is correctly specified
-
-Also change all of the files from `coords_*_BKGD_distrib.SNPs.txt` to `BKGD_distrib.SNPs.txt`
-Same for bQTL
-```
-for i in {0..99} ; do
-	cd perm_${i}
-	mv coords_${i}_BKGD_distrib.SNPs.txt BKGD_distrib.SNPs.txt
-	mv coords_${i}_bQTL_distrib.SNPs.txt bQTL_distrib.SNPs.txt
-	cd ..
-done
-
-#make sure to change the lines of "MOA" to "bQTL" before copying into other directories
-for i in {1..99} ; do cp ../slurm_VCAP_mkKinship.sh perm_${i}/. ;done
-```
-_Submit the slurm scripts_
-
-```
-cd perm_0 
-sbatch slurm_VCAP_mkKinship.sh
-cd ..
-for i in {1..99} ; do
-	cd perm_${i}
-	sbatch --dependency=afterok:4554670 slurm_VCAP_mkKinship.sh
-	cd ..
-done
-```
-
-To see if there were any kinships that need re-running:
-
-```
-for i in {0..99} ; do echo ${i} ; ls perm_${i} | wc -l ; done #there should be 15 files
-```
-
-None need to be rerun
-
-7. Running LDAK
-
-Use this slurm script for `slurm_VCAP_runLDAK.sh`
-```
-#!/bin/bash
-
-# Copy/paste this job script into a text file and submit with the command:
-#    sbatch thefilename
-# job standard output will go to the file slurm-%j.out (where %j is the job ID)
-
-#SBATCH --time=10:00:00   # walltime limit (HH:MM:SS)
-#SBATCH --nodes=1   # number of nodes
-#SBATCH --ntasks-per-node=36   # 1 processor core(s) per node 
-#SBATCH --mail-user=snodgras@iastate.edu   # email address
-#SBATCH --mail-type=BEGIN #Can be edited out if submitting many jobs
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-#SBATCH --exclusive
-module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/
-if [[ ! -f kinship.list ]] ; then 
-	echo bQTL.SNPs.bed_CentIBS_K > kinship.list
-	echo BKGD.SNPs.bed_CentIBS_K >> kinship.list
-	echo CentIBS_Rest_K >> kinship.list
-fi
-
-
-bash /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/VCAP_runLDAK.sh bQTL_Full kinship.list /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/all_NAM_phenos.plink  
-```
-
-```
-for i in {1..99} ; do cp perm_0/slurm_VCAP_runLDAK.sh perm_${i}/. ; done
-for i in {1..99} ; do cd perm_${i} ; sbatch --dependency=afterok:4555071 slurm_VCAP_runLDAK.sh ; cd .. ; done
-```
-
-8. Getting the results formatted correctly
-_Make sure the final file is written to the general directory (otherwise will be deleted)_
-_Will delete all the rest of the files_
-	- run `format_hests.sh`
-
-9. Convergence QC:
-Check which traits converged (or not) across perms
-
-```
-echo perm trait convergence_status > convergence.results
-for i in {0..99} ; do 
-	for j in {1..143} ; do
-		if grep -q "Converged YES" perm_${i}/bQTL_Full.${j}.reml
-		then
-			echo $i $j "YES" >> convergence.results
-		else
-			echo $i $j "NO" >> convergence.results
-		fi
-	done
-done
-sed -i 's/ /\t/g' convergence.results
-grep -c "NO" convergence.results
-```
-Out of 14300 traits x permutations, only 1488 failed to converge compared to 2409 using the 1 SNP per peak method.
-
-```
-grep "NO" convergence.results | cut -f 2 | sort | uniq -c
-```
-37 traits failed to converge at least once (compared to 89)
-(I took the output and put it into an excel spreadsheet for easier data sorting. I took the list of trait numbers and made a file `noConverge.trait.list` to make the next step easier)
-
-```
-while read -r line ; 
-do
-	let n=${line}+2
-	head -n 1 ../all_NAM_phenos.plink | cut -f $n
-done < noConverge.trait.list 
-```
-(I copied the output into the excel spreadsheet that was ordered in the same way for the trait number as the input list for while loop)
-Looks like vitamin E traits, tassel traits, and kernel traits like protein and totalk weight were the most likely to fail in the majority (or all) of the permutations
-Other traits that failed < 10 times were things related to pentrometer, ASI, other metabolite traits, 
-and a few plant architecture traits
-
-```
-grep "NO" convergence.results | cut -f 1 | sort | uniq -c
-```
-
-~10-20 traits in any given permutation would fail to converge, so it's not like one set of regions failed a lot more than others
 
 ### Re-doing the bQTL to be just the bQTL, not a 75+/- bp window around them 
 Starting at step 4 from the clumping
@@ -653,8 +508,8 @@ bedtools intersect -wb -a alignSNP_AF_dist.txt -b NAM_rils_SNPs.padj_probgeno.cl
 ```
 Then double check it worked correctly:
 ```
-wc -l nonbQTL_AF_dist.strict.txt #59822519
-wc -l bQTL_AF_dist.strict.txt #100460
+wc -l nonbQTL_AF_dist.strict.txt #59777554
+wc -l bQTL_AF_dist.strict.txt #145425
 ```
 
 5. Run the SNP selection script
@@ -663,13 +518,13 @@ Modified to `bQTL.SNPselection.R` to not subsample the bQTL, it should only crea
 Need to create commands to run it in parallel
 ```
 for i in {0..99} ; do mkdir bQTL_strict/perm_${i} ; echo module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/ \; module load r r-devtools r-tidyr r-dplyr \; ./bQTL.SNPselection.R  bQTL_AF_dist.strict.txt nonbQTL_AF_dist.strict.txt bQTL_strict/perm_${i}/coords_ >> bQTL_strict.selection.commands ; done
-python ../makeSLURM.py 1 bQTL_strict.selection.commands
+python makeSLURM.py 1 bQTL_strict.selection.commands
 ```
 Double check that the SNP selection worked as intended
 
 ```
-wc -l bQTL_strict/perm_0/coords_bQTL_distrib.SNPs.txt #100461
-wc -l bQTL_strict/perm_0/coords_BKGD_distrib.SNPs.txt #100461
+wc -l bQTL_strict/perm_0/coords_bQTL_distrib.SNPs.txt #145426
+wc -l bQTL_strict/perm_0/coords_BKGD_distrib.SNPs.txt #145426
 for i in {0..9} ; do md5sum bQTL_strict/perm_${i}/coords* ; done #should be the same for all bQTL, different for all BKGD
 ```
 
@@ -736,7 +591,7 @@ if [[ ! -f kinship.list ]] ; then
 fi
 
 
-bash /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/VCAP_runLDAK.sh bQTL_strict kinship.list /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/all_NAM_phenos.plink  
+bash /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/VCAP_runLDAK.sh bQTL kinship.list /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/all_NAM_phenos.plink  
 ```
 
 ```
@@ -817,35 +672,96 @@ Check the size to decide how best to share the zipped directories
 `20G Jul 19 15:27 1SNPperPeak.tar.gz`
 
 ##Simulated Phenotypes
-Used Kinship matrices from `1SNPperPeak_Originalperms/EG80WW_perm_1/`
-```
-paste Example_Kinships_1SNPperPeak/BKGD.SNPs.bed_CentIBS_K.grm.id phenos.y.txt > JeffsPhenos.plink
-sed -i 's/ /\t/g' JeffsPhenos.plink
-```
-For the second test, I removed the Rest kinship name from the kinship list so it should hopefully only run with the BKGD and MOA kinships
+Used Kinship matrices from `1SNPperPeak_Originalperms/EG80WW_perm_1/` (using the 1SNP/MOA peak sampling method)
+Used kinship matrices from `bQTL_strict/perm_0/` (when using bQTL for simulations)
 
-For the third test needed
-```
-cut -d " " -f 2- phenos_round8.txt | paste Example_Kinships_1SNPperPeak/BKGD.SNPs.bed_CentIBS_K.grm.id - > JeffsPhenos.3.plink
-sed -i 's/ /\t/g' ../JeffsPhenos.3.plink 
-```
+_Note that the bQTL kinship matrix and the background kinship matrix are highly correlated: 0.99155_
 
-Make sure the plink format is FID IID Trait names
-```
-#head -n 1 phenos.txt | echo "FID IID" - > phenos.plink
-tail -n +2 Simulated_Phenotypes_highMOAh2.txt | paste Example_Kinships_1SNPperPeak/BKGD.SNPs.bed_CentIBS_K.grm.id -  >> simulatedphenotypes_highMOAh2.plink
-sed -i 's/ /\t/g' phenos.plink
-```
-On the projected SNPs, I realized that the same kinship matrix was being loaded in for every matrix
-So I fixed that so the different K matrices were loaded in correctly.
-Made sure that the randomization was in so it wasn't the same trait value calculated over and over.
-And created `Simulated_Phenotypes.Round2.txt`
+_First run the script:_ `simulate_pheontypes.Rmd`
+
 To convert to plink format:
-```
+```(For the 1SNPperPeak run)
 head -n 1 Simulated_Phenotypes.Round2.txt > Simulated_Phenotypes.Round2.plink
 #manually add in the "FID \t IID"
 tail -n +2 Simulated_Phenotypes.Round2.txt | paste BKGD.SNPs.bed_CentIBS_K.grm.id -  >> Simulated_Phenotypes.Round2.plink
 sed -i '' -e 's/ /\t/g' Simulated_Phenotypes.Round2.plink
+```
+
+```(For the bQTL run)
+head -n 1 Simulated_Phenotypes.bQTLstrict.txt > Simulated_Phenotypes.bQTLstrict.plink
+#manually add in the "FID\tIID" to be the first two columns of the plink file
+tail -n +2 Simulated_Phenotypes.bQTLstrict.txt | paste BKGD.SNPs.bed_CentIBS_K.grm.id - >> Simulated_Phenotypes.bQTLstrict.plink
+sed -i '' -e 's/ /\t/g' Simulated_Phenotypes.bQTLstrict.plink
+```
+Run the LDAK script of the VCAP pipeline
+```
+#!/bin/bash
+
+# Copy/paste this job script into a text file and submit with the command:
+#    sbatch thefilename
+# job standard output will go to the file slurm-%j.out (where %j is the job ID)
+
+#SBATCH --time=10:00:00   # walltime limit (HH:MM:SS)
+#SBATCH --nodes=1   # number of nodes
+#SBATCH --ntasks-per-node=36   # 1 processor core(s) per node 
+#SBATCH --mail-user=snodgras@iastate.edu   # email address
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --exclusive
+module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core/
+if [[ ! -f kinship.list ]] ; then 
+	echo bQTL.SNPs.bed_CentIBS_K > kinship.list
+	echo BKGD.SNPs.bed_CentIBS_K >> kinship.list
+	echo CentIBS_Rest_K >> kinship.list
+fi
+
+
+bash /work/LAS/mhufford-lab/snodgras/MOA/VCAP_21_lines/VCAP_runLDAK.sh bQTL_simulation kinship.list /ptmp/LAS/snodgras/MOA/bQTL_Simulated_Traits/Simulated_Phenotypes.bQTLstrict.plink
+```
+
+Format the output with a modified `format_hest.sh`
+```
+#!/bin/bash
+#Copy/paste this job script into a text file and submit with the command:
+#    sbatch thefilename
+# job standard output will go to the file slurm-%j.out (where %j is the job ID)
+
+#SBATCH --time=00:30:00   # walltime limit (HH:MM:SS)
+#SBATCH --nodes=1   # number of nodes
+#SBATCH --ntasks-per-node=16   # 1 processor core(s) per node 
+#SBATCH --mail-user=snodgras@iastate.edu   # email address
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --no-requeue
+
+mkdir Test_Results
+
+outname=bQTL_Sim
+phenotypefile=/ptmp/LAS/snodgras/MOA/bQTL_Simulated_Traits/Simulated_Phenotypes.bQTLstrict.plink
+
+for i in *.reml ; do
+	n=$(echo $i | cut -f 2 -d \. )
+	let s=$n+2
+	pheno=$(head -n 1 $phenotypefile | cut -f $s)
+	tail -n 6 $i | tr " " "\t" | datamash transpose | head -n 3 > 0.temp
+	awk -v OFS='\t' -v p=$pheno '{print $0,p}' 0.temp > her.$n.out
+	echo "done with $i"
+done
+
+head -n 1 her.1.out > Test_Results/$outname.h_estimates.txt
+for i in her*.out ; do grep -v Component $i >> Test_Results/$outname.h_estimates.txt ; done
+
+rm *.temp her.*.out
+
+head -n 1 *.1.share > Test_Results/$outname.share.txt
+for i in *.share ; do
+	n=$(echo $i | cut -f 2 -d \. )
+	let s=$n+2
+	pheno=$(head -n 1 $phenotypefile | cut -f $s)
+	cat $i | tr " " "\t" | awk -v OFS='\t' -v p=$pheno 'NR != 1 {print $0,p}' - >> Test_Results/$outname.share.txt
+	echo "done with $i"
+done
 ```
 
 ##All figures made with `VCAP_Figures.Rmd`

@@ -4,7 +4,8 @@ output: html_notebook
 ---
 
 ```{r, setup}
-knitr::opts_knit$set(root.dir = "1SNPperPeak_projectedSNPs/")
+#knitr::opts_knit$set(root.dir = "1SNPperPeak_projectedSNPs/")
+knitr::opts_knit$set(root.dir = "JeffsTest/bQTL_strict_Oct2023/")
 ```
 
 
@@ -69,28 +70,28 @@ library("tidyverse")
 ```
 
 ```{r}
-moa_K<-make_K("Example_Kinships_1SNPperPeak/MOA.SNPs.bed_CentIBS_K") 
-smoa_K<-svd(moa_K)
+bqtl_K<-make_K("bQTL.SNPs.bed_CentIBS_K") 
+sbqtl_K<-svd(bqtl_K)
 
-back_K<-make_K("Example_Kinships_1SNPperPeak/BKGD.SNPs.bed_CentIBS_K") 
+back_K<-make_K("BKGD.SNPs.bed_CentIBS_K") 
 sback_K<-svd(back_K)
 
-rest_K<-make_K("Example_Kinships_1SNPperPeak/CentIBS_Rest_K") 
+rest_K<-make_K("CentIBS_Rest_K") 
 srest_K<-svd(rest_K)
 ```
 
 ```{r}
 for(rnd in 1:10){
 # Three K matrices plus residuals
-cmoa_K = sqrt(smoa_K$d) * t(smoa_K$u) # chol(moa_K)
+cbqtl_K = sqrt(sbqtl_K$d) * t(sbqtl_K$u) # chol(moa_K)
 cback_K = sqrt(sback_K$d) * t(sback_K$u) 
 crest_K = sqrt(srest_K$d) * t(srest_K$u) 
 # create 4 vectors of random variables with each kinship matrix (or uncorrelated residuals)
-U = matrix(0,nrow = nrow(cmoa_K),ncol = 4)
-U[,1] = crossprod(cmoa_K,rnorm(nrow(cmoa_K)))
+U = matrix(0,nrow = nrow(cbqtl_K),ncol = 4)
+U[,1] = crossprod(cbqtl_K,rnorm(nrow(cbqtl_K)))
 U[,2] = crossprod(cback_K,rnorm(nrow(cback_K)))
 U[,3] = crossprod(crest_K,rnorm(nrow(crest_K)))
-U[,4] = rnorm(nrow(cmoa_K))
+U[,4] = rnorm(nrow(cbqtl_K))
 # Create a grid of variance component proportions for the 4 variance components
 #grid = seq(0,1,by = 0.2)
 #h2s = expand.grid(h21 = grid,h22 = grid,h23 = grid)
@@ -114,8 +115,9 @@ if(rnd == 1){ #iteratively adds the new trait to a main dataframe
   }
 colnames(Sim_Traits)[(ncol(Sim_Traits)-3):ncol(Sim_Traits)] = colnames(Y) #changes the column names from "Y" to trait name
 }
-write_tsv(Sim_Traits, paste("Simulated_Phenotypes",".","Round2",".txt",sep = ""))
+write_tsv(Sim_Traits, paste("Simulated_Phenotypes",".","bQTLstrict",".txt",sep = ""))
 ```
+
 Write Y as the phenotype output file (if not doing the loop)
 ```{r}
 colnames(Y)<- c(paste("Set",1:4,"-","1",sep = ""))
@@ -172,5 +174,5 @@ write_tsv(Set3_Traits, paste("Simulated_Phenotypes",".","Set3only",".txt",sep = 
 
 #And to find the correlation between two kinship matrices
 ```{r}
-cor(c(moa_K),c(back_K))
+cor(c(bqtl_K),c(back_K))
 ```

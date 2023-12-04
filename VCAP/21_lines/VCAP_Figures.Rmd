@@ -525,7 +525,7 @@ filter(Contrast.Results.h2, Contrast_Name == "Her_K3-Her_K2" & P_val <= 0.05 & C
 remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
 
 for(i in 0:99){
-  p<-str_c("bQTL/Test_Results_strict/perm_",i,".h_estimates.txt",sep="")
+  p<-str_c("bQTL_Strict_Oct2023/Test_Results/perm_",i,".h_estimates.txt",sep="")
   objname<-str_c("H_perm",i)
   assign(objname, read_tsv(p, col_types = cols()))
   assign(objname,format_Hperm(get(objname)))
@@ -604,6 +604,67 @@ H_perm_ALL<-mutate(H_perm_ALL, Trait_Category = case_when(Trait %in% tassel_arch
                                               Trait_Category == "metabolites" ~ "purple",
                                               Trait_Category == "tassel_architecture" ~ "violetred1"))
 H_perm_ALL<-arrange(H_perm_ALL, Va_bQTL)
+
+bQTL_AF<-read_tsv("bQTL_Strict_Oct2023/bQTL_AF_dist.strict.txt", col_names = c("Chr.snp","Start.snp","Stop.snp","AF","distance","Chr.clump","Start.clump","Stop.clump","Clump.ID"))
+BKGD_AF<-read_tsv("bQTL_Strict_Oct2023/nonbQTL_AF_dist.strict.txt", col_names = c("Chr.snp","Start.snp","Stop.snp","AF","distance"))
+
+bQTL_AF<-mutate(bQTL_AF, AFbin = case_when(AF <= 0.10 ~ "AF.0-10",
+                                      AF > 0.10 & AF <= 0.20 ~ "AF.10-20",
+                                      AF > 0.20 & AF <= 0.30 ~ "AF.20-30",
+                                      AF > 0.30 & AF <= 0.40 ~ "AF.30-40",
+                                      AF > 0.40 & AF <= 0.50 ~ "AF.40-50",
+                                      AF > 0.50 & AF <= 0.60 ~ "AF.50-60",
+                                      AF > 0.60 & AF <= 0.70 ~ "AF.60-70",
+                                      AF > 0.70 & AF <= 0.80 ~ "AF.70-80",
+                                      AF > 0.80 & AF <= 0.90 ~ "AF.80-90",
+                                      AF > 0.90 & AF <= 1 ~ "AF.90-100"),
+                    Distbin = case_when(distance <= 500 & distance >= -500 ~ "dist.0-500",
+                                        distance <= 1000 & distance > 500 ~ "dist.500-1000",
+                                        distance >= -1000 & distance < -500 ~ "dist.500-1000",
+                                        distance <= 5000 & distance > 1000 ~ "dist.1000-5000",
+                                        distance >= -5000 & distance < -1000 ~ "dist.1000-5000",
+                                        distance > 5000 | distance < -5000 ~ "dist.5000-max"))
+BKGD_AF<-mutate(BKGD_AF, AFbin = case_when(AF <= 0.10 ~ "AF.0-10",
+                                      AF > 0.10 & AF <= 0.20 ~ "AF.10-20",
+                                      AF > 0.20 & AF <= 0.30 ~ "AF.20-30",
+                                      AF > 0.30 & AF <= 0.40 ~ "AF.30-40",
+                                      AF > 0.40 & AF <= 0.50 ~ "AF.40-50",
+                                      AF > 0.50 & AF <= 0.60 ~ "AF.50-60",
+                                      AF > 0.60 & AF <= 0.70 ~ "AF.60-70",
+                                      AF > 0.70 & AF <= 0.80 ~ "AF.70-80",
+                                      AF > 0.80 & AF <= 0.90 ~ "AF.80-90",
+                                      AF > 0.90 & AF <= 1 ~ "AF.90-100"),
+                    Distbin = case_when(distance <= 500 & distance >= -500 ~ "dist.0-500",
+                                        distance <= 1000 & distance > 500 ~ "dist.500-1000",
+                                        distance >= -1000 & distance < -500 ~ "dist.500-1000",
+                                        distance <= 5000 & distance > 1000 ~ "dist.1000-5000",
+                                        distance >= -5000 & distance < -1000 ~ "dist.1000-5000",
+                                        distance > 5000 | distance < -5000 ~ "dist.5000-max"))
+
+ggplot()+
+  geom_bar(data = BKGD_AF, aes(x=AFbin), stat="count")+
+  xlab("Allele Frequency Bin (0.10 interval)")+ylab("SNPs per Bin (count)")+
+  theme_minimal()+ggtitle("AF of bgSNP pool")
+ggsave("bQTLStrict-Oct2023-bgSNP_AFspectrum.png", device = "png", dpi = 300)
+ggplot()+
+geom_bar(data = bQTL_AF, fill = "red", aes(x=AFbin), stat="count")+
+  xlab("Allele Frequency Bin (0.10 interval)")+ylab("SNPs per Bin (count)")+
+  theme_minimal()+ggtitle("AF of bQTL SNP pool")
+ggsave("bQTLStrict-Oct2023-bQTL_AFspectrum.png", device = "png", dpi = 300)
+
+BKGD_AF$Distbin <- factor(BKGD_AF$Distbin, levels = c("dist.0-500","dist.500-1000","dist.1000-5000","dist.5000-max"))
+bQTL_AF$Distbin <- factor(bQTL_AF$Distbin, levels = c("dist.0-500","dist.500-1000","dist.1000-5000","dist.5000-max"))
+ggplot()+
+  geom_bar(data=BKGD_AF, aes(x=Distbin), stat = "count")+
+  xlab("Distance to nearest gene (bp)")+ylab("SNPs per Bin (count)")+
+  theme_minimal()+ggtitle("Gene distance of bgSNP pool")
+ggsave("bQTLStrict-Oct2023-bgSNP_distancebins.png", device = "png", dpi = 300)
+ggplot()+
+  geom_bar(data=bQTL_AF, aes(x=Distbin),fill = "red", stat = "count")+
+  xlab("Distance to nearest gene (bp)")+ylab("SNPs per Bin (count)")+
+  theme_minimal()+ggtitle("Gene distance of bQTL pool")
+ggsave("bQTLStrict-Oct2023-bQTL_distancebins.png", device = "png", dpi = 300)
+
 ```
 
 ### ZEALUTION FIGURES ###
@@ -808,6 +869,25 @@ ggplot(H_perm_ALL, aes(y=reorder(Trait,Va_bQTL))) +
         legend.position = "none")
 ggsave("pub_VaRidgeplot.svg",device = "svg",width = 4.32, height=5.52)
 ggsave("pub_VaRidgeplot.png",device = "png")
+
+#h2 ridgeplot for the bQTL
+ggplot(H_perm_ALL, aes(y=reorder(Trait,Her_K1))) + 
+  stat_density_ridges(aes(x=Her_K3,fill="3_Rest"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K2,fill="2_Background"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  stat_density_ridges(aes(x=Her_K1,fill="1_bQTL"),alpha=0.75,size=0,from=0,to=1,bandwidth = 0.01)+
+  ylab("Trait")+ xlab("h2") +
+  scale_fill_brewer(palette = "Dark2",labels = c("bQTL", "Background", "Rest"))+
+  geom_point(data = filter(melted_stats_HpermALL, K_Component != "Her_All"), aes(y=Trait, x=Mean, shape = K_Component)) + 
+  scale_shape_manual(values=c(16, 6, 4), labels = c("bQTL Mean", "Background Mean", "Rest Mean"))+
+  theme_minimal()+
+  theme(panel.grid = element_blank(), axis.text.y = element_text(color = Vatrait_label$trait_colors, face = "bold"))+
+  scale_y_discrete(label=rep("—",143))+
+  scale_x_continuous(expand = c(0,0))+
+  ggtitle(str_c("Estimated h2 of All Traits with 100 Permutations"))+
+  theme(legend.title = element_blank(),
+        legend.position = "none")
+ggsave("pub_h2Ridgeplot.svg",device = "svg",width = 4.32, height=5.52)
+ggsave("pub_h2Ridgeplot.png",device = "png")
 ```
 Boxplot with a subset of traits
 ```{r}
@@ -890,7 +970,7 @@ model.1 <- aov(percent_Va ~ K_Component + Trait, data= melted_HpermALL.Va)
 summary(model.1)
 TukeyHSD(model.1,which = "K_Component")
 ```
-So, this means that for %Va, the bQTL explain on average 23% more than the background and 43% more than the Rest. 
+So, this means that for %Va, the bQTL explain on average 29.9% more than the background and 49.7% more than the Rest. 
 
 What about on average across all traits, what is Va% for bQTL vs. background vs. rest?
 
@@ -973,19 +1053,19 @@ filter(Contrast.Results, Contrast_Name == "Va_BKGD-Va_bQTL" & Contrast_Differenc
 filter(Contrast.Results, Contrast_Name == "Va_Rest-Va_bQTL" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the bQTL estimate was larger than the rest estimated Va and significant
 filter(Contrast.Results, Contrast_Name == "Va_Rest-Va_BKGD" & Contrast_Difference <= 0 & P_val <= 0.05) # traits where the background estimate was larger than the rest estimated Va and significant
 ```
-1. There were 14 contrasts that were not significantly different
-2. Of those 14, 13 were not significant differences between the background and the bQTL components or the rest and the bQTL components. (The other one was an insignificant difference between the background and rest component)
+1. There were 15 contrasts that were not significantly different
+2. Of those 15, 13 were not significant differences between the background and the bQTL components or the rest and the bQTL components. (The other two were insignificant differences between the background and rest component)
 3. 39/3 = 13 = the number of traits that weren't significant. This pulls out the other stats for them too. 
-4. There were 103 traits where the bQTL estimated Va was larger than the background and significantly different
-5. There were 120 traits where the bQTL estimated Va was larger than the rest and significantly different.
-6. There were 120 traits where the background estimated Va was larger than the rest and significantly different. 
+4. There were 106 traits where the bQTL estimated Va was larger than the background and significantly different
+5. There were 123 traits where the bQTL estimated Va was larger than the rest and significantly different.
+6. There were 121 traits where the background estimated Va was larger than the rest and significantly different. 
 
 How many traits had a mean percent Va for bQTL that was 0.5 or higher?
 ```{r}
 melted_stats_Va %>% filter(K_Component == "Va_bQTL" & Mean >= 0.5) %>% nrow()
-98/143
+101/143
 ```
-There were 98 traits where the mean percent Va for bQTL was 50% or higher, which is ~69% of traits. 
+There were 101 traits where the mean percent Va for bQTL was 50% or higher, which is ~70% of traits. 
 
 Remaking stats with h2 instead of Va%
 ```{r}
@@ -1051,339 +1131,64 @@ filter(Contrast.Results.h2, Contrast_Name == "Her_K3-Her_K1" & Contrast_Differen
 filter(Contrast.Results.h2, Contrast_Name == "Her_K3-Her_K2" & P_val <= 0.05 & Contrast_Difference < 0)
 ```
 1. There were 15 contrasts that weren't significant
-2. Of those, 14 were contrasts between the bQTL component and either the background or rest.
+2. Of those, 13 were contrasts between the bQTL component and either the background or rest.
 3. Again, pulling out the stats of those 14 traits that weren't significant from #2
-4. There were 102 traits where the bQTL accounted for significantly more h2 than background
-5. There were 120 traits where the bQTL accounted for significantly more h2 than rest
-6. There were 120 traits where the background accounted for significantly more h2 than rest
-
-
-
-
-
-
-
-
+4. There were 106 traits where the bQTL accounted for significantly more h2 than background
+5. There were 123 traits where the bQTL accounted for significantly more h2 than rest
+6. There were 121 traits where the background accounted for significantly more h2 than rest
 
 #### Simulation Test
-This is Jeff's Test
+Formatting the results for easier graphing
 ```{r}
-Simulation_Results<-tibble(Component = c("MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA","MOA",
-                                         "BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD","BKGD",
-                                         "REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST","REST"),
-                           Estimated_Heritability = c(0.089735,0.302803,0.121439,0,0.047706,0.201367,0.391881,0.230719,0.141175,0.099898,0.59848,0.407685,0.11996,0.722034,0.484814,0.461636,0.123139,0.460329,0.585813,0.628793,0,0.104167,0.110934,0,0.046636,0.304704,0.093865,0,0.134057,0,
-                                                      0.578854,0.300289,0.549846,0.523835,0.562339,0.318015,0.12685,0.472777,0.421259,0.592735,0,0.08434,0.314304,0,0,0,0.416757,0.163482,0.026891,0,0.103857,0,0.09411,0.107677,0.029944,0,0,0.026496,0,0.143157,
-                                                      0.034327,0.094028,0.037571,0.1777,0.097464,0.174693,0.167916,0.01979,0.15492,0.016074,0.091303,0.199366,0.286538,0,0.222593,0.209789,0.156046,0.065662,0.083464,0.101015,0.309526,0.315475,0.187602,0.299003,0.311621,0.098523,0.305825,0.360968,0.252244,0.224984),
-                           Simulated_True_Heritability=c(0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,
-                                                         0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,
-                                                         0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.3),
-                           Trait = c(1:30,1:30,1:30))
-Simulation_Results$Component<-factor(Simulation_Results$Component, levels = c("MOA","BKGD","REST"))
-ggplot(Simulation_Results, aes(x=Trait))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3)+
-  geom_point(aes(y=Estimated_Heritability, color = Component))+
-  facet_wrap(~Component)+
-  scale_color_brewer(palette = "Dark2")+
-  theme_bw()+
-  ylab("h2")
-ggsave("JeffsTest/SimulatedH2byComponent.png",device = "png")
+Simulation_Results<-read_tsv("../JeffsTest/bQTL_strict_Oct2023/bQTL_Sim.h_estimates.txt")
 
-ggplot(Simulation_Results, aes(x=Simulated_True_Heritability, y=Estimated_Heritability))+
-  geom_abline(slope = 1, intercept = 0)+
-  geom_point(aes(color=Component),alpha =0.6)+
-  theme_bw()+
-  scale_color_brewer(palette = "Dark2")
-ggsave("JeffsTest/SimulatedvsEstimatedHeritabilities.png",device = "png")
+Simulation_Results<-filter(Simulation_Results, Component == "Heritability")
+colnames(Simulation_Results)[7]<-"Simulated_Trait"
 
-cor(x=Simulation_Results$Simulated_True_Heritability, y=Simulation_Results$Estimated_Heritability) #Pearson's Correlation 
-cor(x=Simulation_Results$Simulated_True_Heritability, y=Simulation_Results$Estimated_Heritability)^2 #I think this is R2
-```
-Boxplots instead
-```{r}
-Simulation_Results<-mutate(Simulation_Results, Setofh2 = case_when(Trait %in% 1:10 ~ "Set 1",
-                                                                   Trait %in% 11:20 ~"Set 2",
-                                                                   Trait %in% 21:30 ~ "Set 3"))
+Simulation_Results<-select(Simulation_Results, -Component) %>% melt(value.name = "Estimated_h2", id.vars = "Simulated_Trait", variable.name = "Her_Component") %>% filter(Her_Component != "Her_Top")
 
-ggplot(Simulation_Results, aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.png",device = "png") 
-```
-#Jeff's simulation on Nova with a 0.9/0.02/0.02/0.06 split
-###Read in all files
-```{r}
-remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
+Simulation_Results<-mutate(Simulation_Results, Component = case_when(Her_Component == "Her_K1" ~ "bQTL", Her_Component == "Her_K2" ~ "bkgd", Her_Component == "Her_K3" ~ "rest", Her_Component == "Her_All" ~ "TOTAL"))
 
-HighMOAsim<-read_tsv("JeffsTest/Test_Results_Sims/HighMOAh2_sims.h_estimates.txt")
-HighMOAsim<-format_Hperm(HighMOAsim)
-#Since there's only one run, the above will be our H_ALL
-```
-###Calculate Va and plot
-Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
-https://github.com/AndiKur4/MaizePal
-box plot
-```{r}
-HighMOAsim<-HighMOAsim %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-HighMOAsim<-mutate(HighMOAsim, Simulated_True_Heritability = case_when(K_Component == "Her_K1" ~ 0.9,
-                                                                       K_Component == "Her_K2" ~ 0.02,
-                                                                       K_Component == "Her_K3" ~ 0.02,
-                                                                       K_Component == "Her_ALL" ~ 0.94),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = "Set4")
-HighMOAsim$Component <- factor(HighMOAsim$Component, levels = c("MOA","BKGD","REST"))
-HighMOAsim %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.highMOAh2.png",device = "png") 
-```
-###Merging the different sims 
-```{r}
-Simulation_Results<-add_row(Simulation_Results, 
-        Component = HighMOAsim$Component,
-        Simulated_True_Heritability = HighMOAsim$Simulated_True_Heritability,
-        Estimated_Heritability = HighMOAsim$Estimated_Heritability,
-        Setofh2 = HighMOAsim$Setofh2, 
-        Trait = HighMOAsim$Trait
-        )
-```
-###Full boxplot
-```{r}
-Simulation_Results %>% filter(Component %in% c("MOA","BKGD","REST")) %>% 
-ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.png",device = "png") 
-```
-#Jeff's simulation on Nova with the projected SNPs
-Used 1 SNP per Peak to create the kinship matrices with the projected SNPs
-Simulated Heritabilities were:
-             h21 = c(rep(0.1,10),rep(0.5,10),rep(0.05,10),rep(0.9, 10)), 
-             h22 = c(rep(0.5,10),rep(0.1,10),rep(0.05,10),rep(0.02, 10)), 
-             h23 = c(rep(0.1,10),rep(0.1,10),rep(0.3,10),rep(0.02, 10))
-###Read in all files
-```{r}
-remove(list = ls(pattern = "^H_perm"))#so there isn't any confusion between test runs
-#Round 1
-#SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/FullSims_0423projections.h_estimates.txt")
-#Round 2
-SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/Sim.Round2_0423projections.h_estimates.txt")
-SimResults<-format_Hperm(SimResults)
-#Since there's only one run, the above will be our H_ALL
-```
-###Calculate Va and plot
-Va == Heritability_K[1 || 2 || 3]/Heritability_ALL
-https://github.com/AndiKur4/MaizePal
-box plot
-```{r}
-SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
-                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
-                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
-                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
-SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
-SimResults %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Round2.png",device = "png") 
-```
-Here's the results of redone only set 1
-```{r}
-SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/SimSet1only_0423projections.h_estimates.txt")
-SimResults<-format_Hperm(SimResults)
-SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
-                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
-                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
-                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
-SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
-SimResults %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Set1OnlyRedo.png",device = "png") 
-```
-And here's the results redone for only set 3
-```{r}
-SimResults<-read_tsv("JeffsTest/1SNPperPeak_projectedSNPs/SimSet3only_0423projections.h_estimates.txt")
-SimResults<-format_Hperm(SimResults)
-SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
-                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
-                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
-                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
-SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
-SimResults %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.0423ProjectionSNPs.Set3OnlyRedo.png",device = "png") 
-```
-Here's re-trying the original markers on the nova cluster
-```{r}
-SimResults<-read_tsv("JeffsTest/Test_Results_Sims/Sim_originalRILmarkers_onNOVA.h_estimates.txt")
-SimResults<-format_Hperm(SimResults)
-SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",11:20,sep="")) ~ 0.5,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("V",21:30,sep="")) ~ 0.05,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",1:10,sep=""))~ 0.5,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",11:20,sep=""))~ 0.1,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("V",21:30,sep=""))~ 0.05,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",11:20,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("V",21:30,sep="")) ~ 0.3,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",11:20,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("V",21:30,sep=""))~ 0.4),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = case_when(Trait %in% c(paste("V",1:10,sep="")) ~ "Set1",
-                                       Trait %in% c(paste("V",11:20,sep="")) ~ "Set2",
-                                       Trait %in% c(paste("V",21:30,sep="")) ~ "Set3"))
-SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
-SimResults %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-```
-Here's the results for GATK (same kinship as above but with different traits simulated for an accurate set 4)
-###Read in all files
-```{r}
-remove(list = ls(pattern = "^H_perm"))
-SimResults<-read_tsv("JeffsTest/Example_Kinships_1SNPperPeak/Sim_gatk_Round2.h_estimates.txt")
-SimResults<-format_Hperm(SimResults)
+Simulation_Results<-mutate(Simulation_Results, True_h2 = case_when(Simulated_Trait %in% c(paste("Set1-",1:10,sep = "")) & Component == "bQTL" ~ 0.1,
+                                               Simulated_Trait %in% c(paste("Set1-",1:10,sep = "")) & Component == "bkgd" ~ 0.5,
+                                               Simulated_Trait %in% c(paste("Set1-",1:10,sep = "")) & Component == "rest" ~ 0.1,
+                                               Simulated_Trait %in% c(paste("Set1-",1:10,sep = "")) & Component == "TOTAL" ~ 0.6,
+                                               Simulated_Trait %in% c(paste("Set2-",1:10,sep = "")) & Component == "bQTL" ~ 0.5,
+                                               Simulated_Trait %in% c(paste("Set2-",1:10,sep = "")) & Component == "bkgd" ~ 0.1,
+                                               Simulated_Trait %in% c(paste("Set2-",1:10,sep = "")) & Component == "rest" ~ 0.1,
+                                               Simulated_Trait %in% c(paste("Set2-",1:10,sep = "")) & Component == "TOTAL" ~ 0.6,
+                                               Simulated_Trait %in% c(paste("Set3-",1:10,sep = "")) & Component == "bQTL" ~ 0.05,
+                                               Simulated_Trait %in% c(paste("Set3-",1:10,sep = "")) & Component == "bkgd" ~ 0.05,
+                                               Simulated_Trait %in% c(paste("Set3-",1:10,sep = "")) & Component == "rest" ~ 0.3,
+                                               Simulated_Trait %in% c(paste("Set3-",1:10,sep = "")) & Component == "TOTAL" ~ 0.4,
+                                               Simulated_Trait %in% c(paste("Set4-",1:10,sep = "")) & Component == "bQTL" ~ 0.9,
+                                               Simulated_Trait %in% c(paste("Set4-",1:10,sep = "")) & Component == "bkgd" ~ 0.02,
+                                               Simulated_Trait %in% c(paste("Set4-",1:10,sep = "")) & Component == "rest" ~ 0.02,
+                                               Simulated_Trait %in% c(paste("Set4-",1:10,sep = "")) & Component == "TOTAL" ~ 0.94
+                                               ))
+
+Simulation_Results$Component <- factor(Simulation_Results$Component, levels = c("bQTL","bkgd","rest","TOTAL"))
+
 ```
 
+Correlation between estimated h2 and true h2
 ```{r}
-SimResults<-SimResults %>% select(c(Her_K1, Her_K2, Her_K3,Her_ALL,Trait)) %>% melt(id.vars="Trait", value.name="Estimated_Heritability", variable.name="K_Component")
-SimResults<-mutate(SimResults, Simulated_True_Heritability = case_when(K_Component == "Her_K1" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.9,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.5,
-                                                                       K_Component == "Her_K1" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.05,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.02,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.5,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.1,
-                                                                       K_Component == "Her_K2" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.05,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set4-",1:10,sep="")) ~ 0.02,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set1-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set2-",1:10,sep="")) ~ 0.1,
-                                                                       K_Component == "Her_K3" & Trait %in% c(paste("Set3-",1:10,sep="")) ~ 0.3,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set4-",1:10,sep=""))~ 0.94,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set1-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set2-",1:10,sep=""))~ 0.7,
-                                                                       K_Component == "Her_ALL" & Trait %in% c(paste("Set3-",1:10,sep=""))~ 0.4),
-                   Component = case_when(K_Component == "Her_K1" ~ "MOA",
-                                         K_Component == "Her_K2" ~ "BKGD",
-                                         K_Component == "Her_K3" ~ "REST",
-                                         K_Component == "Her_ALL" ~ "TOTAL"),
-                   Setofh2 = case_when(Trait %in% c(paste("Set1-",1:10,sep="")) ~ "Set1",
-                                       Trait %in% c(paste("Set2-",1:10,sep="")) ~ "Set2",
-                                       Trait %in% c(paste("Set3-",1:10,sep="")) ~ "Set3",
-                                       Trait %in% c(paste("Set4-",1:10,sep="")) ~ "Set4"))
-SimResults$Component <- factor(SimResults$Component, levels = c("MOA","BKGD","REST"))
-SimResults %>% filter(Component != "TOTAL")%>% 
-  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_Heritability))+
-  geom_boxplot(aes(color=Component))+
-  geom_point(aes(y=Simulated_True_Heritability), shape = 3, position=position_dodge(width = 0.75) )+
-  scale_color_brewer(palette = "Dark2")+
-  scale_fill_brewer(palette = "Set2")+
-  theme_bw()+
-  ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
-ggsave("JeffsTest/Simulatedh2Boxplot.gatkSNPs.Round2.png",device = "png") 
+cor(x=Simulation_Results$True_h2, y=Simulation_Results$Estimated_h2)
+cor(x=Simulation_Results$True_h2, y=Simulation_Results$Estimated_h2)^2 #Is this r^2?
+```
+Plot the results
+```{r}
+Simulation_Results %>% filter(Component %in% c("bQTL","bkgd","rest")) %>%
+  mutate(Setofh2 = case_when(Simulated_Trait %in% paste0("Set1-",1:10) ~ "Set1",
+                             Simulated_Trait %in% paste0("Set2-",1:10) ~ "Set2",
+                             Simulated_Trait %in% paste0("Set3-",1:10) ~ "Set3",
+                             Simulated_Trait %in% paste0("Set4-",1:10) ~ "Set4")) %>%
+  ggplot(aes(x = Setofh2,fill=Component, y = Estimated_h2))+
+    geom_boxplot(aes(color=Component))+
+    geom_point(aes(y=True_h2), shape = 3, position=position_dodge(width = 0.75) )+
+    scale_color_brewer(palette = "Dark2")+
+    scale_fill_brewer(palette = "Set2")+
+    theme_bw()+
+    ylab("Estimated h2")+xlab("Sets of Simulated Phenotypes with Same h2 Truths")
+ggsave("../JeffsTest/bQTL_strict_Oct2023/Simulatedh2Boxplot.png",device = "png") 
 ```
